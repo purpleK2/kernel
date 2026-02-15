@@ -211,7 +211,7 @@ static inline uint64_t syscall6(uint64_t num, uint64_t a1, uint64_t a2,
     return ret;
 }
 
-static const char filename[] = "/dev/e9";
+static const char filename[] = "/dev/tty1";
 
 __thread uint64_t thread_local_var = 67;
 

@@ -1,4 +1,5 @@
 #include "stdio.h"
+#include "dev/tty/vt.h"
 #include "interrupts/irq.h"
 #include "interrupts/isr.h"
 
@@ -73,7 +74,9 @@ void clearscreen() {
 void putc(int c, void *ctx) {
     UNUSED(ctx);
     spinlock_acquire(&STDIO_FB_LOCK);
-    _term_putc(c);
+    if (vt_is_console_active()) {
+        _term_putc(c);
+    }
     spinlock_release(&STDIO_FB_LOCK);
 }
 

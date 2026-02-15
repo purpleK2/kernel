@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "dev/tty/tty.h"
+#include "dev/tty/vt.h"
 #include "loader/elf/elfloader.h"
 #include "karg.h"
 #include "pci/pci.h"
@@ -527,6 +528,8 @@ void kstart(void) {
 
     _disable_interrupts(); // just in case
     irq_registerHandler(0, scheduler_timer_tick);
+
+    vt_init();
     kprintf_ok("Scheduler initialized\n");
     _enable_interrupts();
 
