@@ -55,6 +55,42 @@ bool rb_pop(ringbuffer_t *rb, char *out) {
     return true;
 }
 
+int rb_write(ringbuffer_t *rb, const char *data, size_t len, int flags) {
+    (void)flags;
+    if (!rb || !data || len == 0) {
+        return -1;
+    }
+
+    size_t written = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (rb_push(rb, data[i])) {
+            written++;
+        } else {
+            break;
+        }
+    }
+
+    return written;
+}
+
+int rb_read(ringbuffer_t *rb, char *data, size_t len, int flags) {
+    (void)flags;
+    if (!rb || !data || len == 0) {
+        return -1;
+    }
+
+    size_t read = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (rb_pop(rb, &data[i])) {
+            read++;
+        } else {
+            break;
+        }
+    }
+
+    return read;
+}
+
 
 bool rb_is_empty(const ringbuffer_t *rb) {
     return rb->size == 0;

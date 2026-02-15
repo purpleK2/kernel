@@ -1,4 +1,5 @@
 #include "serial.h"
+#include "dev/tty/tty.h"
 
 #include <dev/device.h>
 #include <io.h>
@@ -78,17 +79,31 @@ int com1_ioctl(struct device *dev, int request, void *arg) {
     return 0;
 }
 
+static ssize_t serial_out(tty_t *tty, const char *buf, size_t size) {
+	uint16_t port = (uint16_t)(uintptr_t)tty->priv_data;
+	while (size > 0) {
+		serial_write(port, *buf);
+		size--;
+		buf++;
+	}
+	return size;
+}
+
+static tty_ops_t com1_ops = {
+    .ioctl = NULL,
+    .out = serial_out,
+    .cleanup = NULL
+};
+
 void dev_serial_init() {
     serial_init(COM1);
 
-    device_t *dev = kmalloc(sizeof(device_t));
-    memcpy(dev->name, "com1", DEVICE_NAME_MAX);
-    dev->write         = com1_write;
-    dev->read          = com1_read;
-    dev->ioctl         = com1_ioctl;
-    dev->dev_node_path = "com1";
-    dev->type          = DEVICE_TYPE_CHAR;
-    dev->data          = "com1;38400baud;8n1;irq;fifo;works";
+    tty_t *serial_tty = tty_create(NULL);
+    serial_tty->priv_data = (void *)(uintptr_t)COM1;
+    serial_tty->ops = &com1_ops;
 
-    register_device(dev);
+    snprintf(serial_tty->device.name, DEVICE_NAME_MAX, "ttyS0");
+    serial_tty->device.dev_node_path = "ttyS0";
+
+    register_device(&serial_tty->device);
 }

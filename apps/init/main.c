@@ -2087,6 +2087,14 @@ void main(uintptr_t *stack_ptr) {
 
     syscall1(SYS_CLOSE, fb);
 
+    int ttys0fd = syscall3(SYS_OPEN, (uint64_t)"/dev/ttyS0", 0, 0);
+    if (ttys0fd >= 0) {
+        print(ttys0fd, "Hello from /dev/ttyS0!\r\n");
+        syscall1(SYS_CLOSE, (uint64_t)ttys0fd);
+    } else {
+        print(fd, "Failed to open /dev/ttyS0!\n");
+    }
+
     
     syscall1(SYS_EXIT, thread_local_var);
     /* Should not return. */

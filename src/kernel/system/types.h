@@ -2,6 +2,7 @@
 #define TYPES_H
 
 #include <stdatomic.h>
+#include <stdint.h>
 
 // user management
 
@@ -13,5 +14,7 @@ typedef unsigned int mode_t;
 // file management
 
 typedef unsigned int fd_t;
+
+typedef uint64_t pid_t;
 
 #endif // TYPES_H
