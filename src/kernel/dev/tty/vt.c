@@ -1,8 +1,10 @@
 #include "vt.h"
 #include "dev/device.h"
+#include "errors.h"
 #include "memory/heap/kheap.h"
 #include "stdio.h"
 #include "terminal/terminal.h"
+#include "uaccess.h"
 #include <string.h>
 #include <util/assert.h>
 
@@ -158,6 +160,162 @@ static tty_ops_t vt_tty_ops = {
     .cleanup = NULL
 };
 
+static int vt_ioctl_handler(tty_t *tty, long request, void *arg) {
+    (void)tty;
+    int ret;
+
+    debugf_debug("VT ioctl: request=0x%lx\n", request);
+    
+    switch (request) {
+    case VT_ACTIVATE: {
+        int vt_num;
+        ret = copy_from_user(&vt_num, arg, sizeof(int));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        
+        if (vt_num < 1 || vt_num >= MAX_VTS) {
+            return -EINVAL;
+        }
+        
+        if (!vts[vt_num]) {
+            return -ENXIO;
+        }
+        
+        vt_switch_to(vt_num);
+        return 0;
+    }
+    
+    case VT_GETSTATE: {
+        vt_stat_t state;
+        
+        state.v_active = active_vt;
+        state.v_signal = 0;
+        state.v_state = 0;
+        
+        for (int i = 1; i < MAX_VTS; i++) {
+            if (vts[i]) {
+                state.v_state |= (1 << i);
+            }
+        }
+        
+        ret = copy_to_user(arg, &state, sizeof(vt_stat_t));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        
+        return 0;
+    }
+    
+    case VT_OPENQRY: {
+        int vt_num = -1;
+        
+        for (int i = 1; i < MAX_VTS; i++) {
+            if (!vts[i]) {
+                vt_num = i;
+                break;
+            }
+        }
+        
+        if (vt_num == -1) {
+            return -ENXIO;
+        }
+        
+        ret = copy_to_user(arg, &vt_num, sizeof(int));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        
+        return 0;
+    }
+    
+    case VT_WAITACTIVE: {
+        int vt_num;
+        ret = copy_from_user(&vt_num, arg, sizeof(int));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        
+        if (vt_num < 1 || vt_num >= MAX_VTS) {
+            return -EINVAL;
+        }
+        
+        if (active_vt == vt_num) {
+            return 0;
+        }
+        
+        return -EINTR;
+    }
+    
+    default:
+        return -EINVAL;
+    }
+}
+
+static ssize_t tty0_output(tty_t *tty, const char *buf, size_t size) {
+    (void)tty;
+    
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty->ops->out(vts[active_vt]->tty, buf, size);
+    }
+    
+    return 0;
+}
+
+static tty_ops_t tty0_ops = {
+    .ioctl = vt_ioctl_handler,
+    .out = tty0_output,
+    .cleanup = NULL
+};
+
+void vt_create_tty0(void) {
+    tty_t *tty0 = tty_create(NULL);
+    if (!tty0) {
+        debugf_warn("Failed to create tty0\n");
+        return;
+    }
+    
+    tty0->ops = &tty0_ops;
+    
+    snprintf(tty0->device.name, DEVICE_NAME_MAX, "tty0");
+    tty0->device.dev_node_path = "tty0";
+    register_device(&tty0->device);
+    
+    debugf_debug("Created tty0 (current VT)\n");
+}
+
+static ssize_t console_output(tty_t *tty, const char *buf, size_t size) {
+    (void)tty;
+    
+    for (size_t i = 0; i < size; i++) {
+        _term_putc(buf[i]);
+    }
+    
+    return size;
+}
+
+static tty_ops_t console_ops = {
+    .ioctl = vt_ioctl_handler,
+    .out = console_output,
+    .cleanup = NULL
+};
+
+void vt_create_console(void) {
+    tty_t *console = tty_create(NULL);
+    if (!console) {
+        debugf_warn("Failed to create console\n");
+        return;
+    }
+    
+    console->ops = &console_ops;
+    
+    snprintf(console->device.name, DEVICE_NAME_MAX, "console");
+    console->device.dev_node_path = "console";
+    register_device(&console->device);
+    
+    debugf_debug("Created console\n");
+}
+
 vt_t *vt_create(int vt_num) {
     if (vt_num < 1 || vt_num >= MAX_VTS)
         return NULL;
@@ -238,6 +396,10 @@ void vt_init(void) {
             debugf_warn("Failed to create VT%d\n", i);
         }
     }
+
+    vt_create_tty0();
+
+    vt_create_console();
     
     if (vts[1]) {
         active_vt = 1;

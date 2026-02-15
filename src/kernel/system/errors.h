@@ -25,6 +25,8 @@
 #define EACCESS   21 // no permission (haha couldnt imagine)
 #define EMFILE    22 // too many open files in system
 #define EFAULT    23 // bad address
+#define EINTR     24 // interrupted system call
+#define ENXIO     25 // no such device or address
 
 #define EPCIENOENT 101 // special
 #endif                 // ERRORS_H

@@ -113,3 +113,8 @@ typedef struct termios {
 #define TCIOFLUSH 0
 #define TCIFLUSH  1
 #define TCOFLUSH  2
+
+#define VT_ACTIVATE   0x5606
+#define VT_WAITACTIVE 0x5607
+#define VT_GETSTATE   0x5603
+#define VT_OPENQRY    0x5600

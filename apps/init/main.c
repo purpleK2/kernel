@@ -211,7 +211,7 @@ static inline uint64_t syscall6(uint64_t num, uint64_t a1, uint64_t a2,
     return ret;
 }
 
-static const char filename[] = "/dev/tty1";
+static const char filename[] = "/dev/console";
 
 __thread uint64_t thread_local_var = 67;
 
@@ -2176,6 +2176,10 @@ void main(uintptr_t *stack_ptr) {
     
     syscall1(SYS_CLOSE, ttys0fd);
 
+    int vt_num = 2;
+
+    syscall3(SYS_IOCTL, fd, VT_ACTIVATE, (uint64_t)(void*)&vt_num); // todo dont make it take a pointer :sob:
+    syscall3(SYS_IOCTL, fd, VT_WAITACTIVE, (uint64_t)(void*)&vt_num);
     
     syscall1(SYS_EXIT, thread_local_var);
     /* Should not return. */
