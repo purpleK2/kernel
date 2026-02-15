@@ -24,6 +24,7 @@ typedef struct tty {
     void *priv_data;
 
     ringbuffer_t input_buffer;
+    atomic_flag input_buffer_lock;
 
     tty_ops_t *ops;
 

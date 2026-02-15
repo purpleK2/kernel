@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "dev/tty/tty.h"
 #include "loader/elf/elfloader.h"
 #include "karg.h"
 #include "pci/pci.h"
@@ -453,7 +454,6 @@ void kstart(void) {
 
     if (vfs_mount(NULL, "devfs", CONFIG_DEVFS_MOUNT, NULL) == NULL) {
         kprintf_warn("Failed to initialize DEVFS!\n");
-        fs_list("/", -1);
         for (;;);
     } else {
         kprintf_ok("DEVFS initialized successfully!\n");
@@ -496,8 +496,6 @@ void kstart(void) {
     assert(buf);
     read(f, 30, buf);
     kprintf("Reading contents: %s\n", buf);
-
-    fs_list("/", -1);
 
     binfmt_register_loader(&elf_binfmt_loader);
 

@@ -1,5 +1,6 @@
 #include "file_io.h"
 #include "ipc/pipe.h"
+#include "scheduler/scheduler.h"
 #include "user/access.h"
 
 #include <fs/vfs/vfs.h>

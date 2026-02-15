@@ -2,6 +2,7 @@
 #include "dev/tty/termios.h"
 #include "errors.h"
 #include "memory/heap/kheap.h"
+#include "stdio.h"
 #include "structures/ringbuffer.h"
 #include <util/assert.h>
 #include <string.h>
@@ -9,32 +10,67 @@
 static int tty_write(struct device *dev, const void *buffer, size_t size, size_t offset) {
     (void)offset;
     tty_t *tty = (tty_t *)dev->data;
+    size_t original_size = size;
+    const char *buf = (const char *)buffer;
 
     while(size > 0){
-		tty_output(tty,*(char *)buffer);
-		(char *)buffer++;
-		size--;
-	}
+        tty_output(tty, *buf);
+        buf++;
+        size--;
+    }
 
-	return size;
+    return original_size;
 }
 
 static int tty_read(struct device *dev, void *buffer, size_t size, size_t offset) {
-    (void)offset;
-	tty_t *tty = (tty_t *)dev->data;
+    tty_t *tty = (tty_t *)dev->data;
 
-	if(tty->termios.c_lflag & ICANON){
-		ssize_t rsize = rb_read(&tty->input_buffer, buffer, size, 0);
-		if(rsize < 0){
-			return rsize;
-		}
-		if(((char *)buffer)[rsize - 1] == tty->termios.c_cc[VEOF]){
-			rsize--;
-		}
-		return rsize;
+    if (size == 0) {
+        return 0;
 	}
 
-	return rb_read(&tty->input_buffer, buffer, size, 0);
+	if (tty->termios.c_lflag & ICANON) {
+	    while (true) {
+	        spinlock_acquire(&tty->input_buffer_lock);
+	        size_t buf_size = rb_size(&tty->input_buffer);
+	        if (buf_size == 0) {
+	            spinlock_release(&tty->input_buffer_lock);
+	            waitqueue_sleep(&tty->read_queue);
+	            continue;
+	        }
+
+			size_t to_read = 0;
+			for (; to_read < buf_size && to_read < size; to_read++) {
+	    		char c;
+	    		rb_peek(&tty->input_buffer, to_read, &c);
+	    		if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
+	        		to_read++;
+	       			break;
+	    		}
+			}
+
+			if (to_read > 0) {
+	    		size_t result = rb_read(&tty->input_buffer, buffer, to_read, 0);
+	    		spinlock_release(&tty->input_buffer_lock);
+
+	    		return result;
+			}
+
+	        spinlock_release(&tty->input_buffer_lock);
+	    	waitqueue_sleep(&tty->read_queue);
+	    }
+	}
+
+	size_t vmin = tty->termios.c_cc[VMIN];
+
+    while (rb_size(&tty->input_buffer) < vmin) {
+        waitqueue_sleep(&tty->read_queue);
+    }
+
+	spinlock_acquire(&tty->input_buffer_lock);
+    size_t result = rb_read(&tty->input_buffer, buffer, size, 0);
+	spinlock_release(&tty->input_buffer_lock);
+	return result;
 }
 
 static int tty_ioctl(struct device *dev, int request, void *arg) {
@@ -156,11 +192,16 @@ int tty_input(tty_t *tty, char c) {
 		tty->canon_buf[tty->canon_idx] = c;
 		tty->canon_idx++;
 		if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
-			if ((size_t)rb_write(&tty->input_buffer, tty->canon_buf, tty->canon_idx, 0) < tty->canon_idx) {
-				if (tty->termios.c_iflag & IMAXBEL){
-					tty_output(tty, '\a');
-				}
+			spinlock_acquire(&tty->input_buffer_lock);
+			size_t written = rb_write(&tty->input_buffer, tty->canon_buf, tty->canon_idx, 0);
+			spinlock_release(&tty->input_buffer_lock);
+
+			if (written < tty->canon_idx && (tty->termios.c_iflag & IMAXBEL)) {
+        		tty_output(tty, '\a');
 			}
+
+    		waitqueue_wake_all(&tty->read_queue);
+
 			tty->canon_idx = 0;
 		}
 		return 0;
@@ -170,10 +211,14 @@ int tty_input(tty_t *tty, char c) {
 		tty_output(tty, c);
 	}
 
-	if (rb_write(&tty->input_buffer, &c, 1, 0) == 0) {
-		if (tty->termios.c_iflag & IMAXBEL) {
-			tty_output(tty, '\a');
-		}
+	spinlock_acquire(&tty->input_buffer_lock);
+	if (rb_write(&tty->input_buffer, &c, 1, 0) == 1) {
+		spinlock_release(&tty->input_buffer_lock);
+    	waitqueue_wake_all(&tty->read_queue);
+	} else {
+		spinlock_release(&tty->input_buffer_lock);
+    	if (tty->termios.c_iflag & IMAXBEL)
+        	tty_output(tty, '\a');
 	}
 
 	return 0;
@@ -224,6 +269,7 @@ tty_t *tty_create(tty_t *tty) {
     }
 
     rb_init(&tty->input_buffer, 4096);
+	tty->input_buffer_lock = (atomic_flag)ATOMIC_FLAG_INIT;
 
     memset(&tty->termios, 0, sizeof(termios_t));
 
@@ -236,7 +282,7 @@ tty_t *tty_create(tty_t *tty) {
 	tty->termios.c_iflag = ICRNL | IMAXBEL;
 	tty->termios.c_oflag = OPOST | ONLCR | ONLRET;
 	tty->termios.c_lflag = ECHONL | ECHOK | ECHOE | ECHO | ICANON | IEXTEN | ISIG;
-	tty->termios.c_oflag = CS8;
+	tty->termios.c_cflag = CS8;
 
     tty->canon_buf = kmalloc(512);
     assert(tty->canon_buf);

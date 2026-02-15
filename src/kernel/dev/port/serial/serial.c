@@ -1,10 +1,13 @@
 #include "serial.h"
 #include "dev/tty/tty.h"
+#include "interrupts/irq.h"
 
 #include <dev/device.h>
 #include <io.h>
 
 #include <stdio.h>
+
+static tty_t *com1_tty;
 
 int serial_received(int port) {
     return _inb(port + 5) & 1;
@@ -56,6 +59,8 @@ void serial_init(int port) {
 
     // If serial is not looped back, set it in normal operation mode
     _outb(port + 4, 0x0F);
+
+    _outb(port + 1, 0x01);
 }
 
 void serial_write(int port, char c) {
@@ -95,6 +100,19 @@ static tty_ops_t com1_ops = {
     .cleanup = NULL
 };
 
+void com1_irq_handler(registers_t *regs) {
+    (void)regs;
+
+    uint16_t port = (uint16_t)(uintptr_t)com1_tty->priv_data;
+
+    while (serial_received(port)) {
+        char c = _inb(port);
+        tty_input(com1_tty, c);
+    }
+
+    irq_sendEOI(4);
+}
+
 void dev_serial_init() {
     serial_init(COM1);
 
@@ -106,4 +124,8 @@ void dev_serial_init() {
     serial_tty->device.dev_node_path = "ttyS0";
 
     register_device(&serial_tty->device);
+
+    com1_tty = serial_tty;
+
+    irq_registerHandler(4, com1_irq_handler);
 }

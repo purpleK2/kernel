@@ -387,7 +387,7 @@ int devfs_read(vnode_t *vn, size_t *bytes, size_t *offset, void *out) {
     );
 
     if (ret < 0) {
-        return ret;    
+        return ret;
 	}
 
     *bytes = (size_t)ret;

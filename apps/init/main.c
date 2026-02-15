@@ -2090,6 +2090,21 @@ void main(uintptr_t *stack_ptr) {
     int ttys0fd = syscall3(SYS_OPEN, (uint64_t)"/dev/ttyS0", 0, 0);
     if (ttys0fd >= 0) {
         print(ttys0fd, "Hello from /dev/ttyS0!\r\n");
+        
+        // read from ttyS0 and output to fd
+        char buf[128];
+        int64_t r = syscall3(SYS_READ, (uint64_t)ttys0fd, (uint64_t)buf, sizeof(buf)-1);
+        print_dec(fd, r);
+        print(fd, " bytes read from /dev/ttyS0\r\n");
+        if (r > 0) {
+            buf[r] = '\0';
+            print(fd, "Read from /dev/ttyS0: \"");
+            print(fd, buf);
+            print(fd, "\"\r\n");
+        } else {
+            print(fd, "Failed to read from /dev/ttyS0\r\n");
+        }
+
         syscall1(SYS_CLOSE, (uint64_t)ttys0fd);
     } else {
         print(fd, "Failed to open /dev/ttyS0!\n");

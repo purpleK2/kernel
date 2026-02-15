@@ -23,6 +23,8 @@ int rb_read(ringbuffer_t *rb, char *data, size_t len, int flags);
 bool rb_is_empty(const ringbuffer_t *rb);
 bool rb_is_full(const ringbuffer_t *rb);
 
+bool rb_peek(ringbuffer_t *rb, size_t index, char *out);
+
 size_t rb_size(const ringbuffer_t *rb);
 size_t rb_capacity(const ringbuffer_t *rb);
 

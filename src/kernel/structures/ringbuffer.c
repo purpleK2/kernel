@@ -107,3 +107,9 @@ size_t rb_size(const ringbuffer_t *rb) {
 size_t rb_capacity(const ringbuffer_t *rb) {
     return rb->capacity;
 }
+
+bool rb_peek(ringbuffer_t *rb, size_t index, char *out) {
+    if (index >= rb->size || !out) return false;
+    *out = rb->buffer[(rb->tail + index) % rb->capacity];
+    return true;
+}
