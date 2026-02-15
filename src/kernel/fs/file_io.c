@@ -76,13 +76,17 @@ size_t read(fileio_t *file, size_t size, void *out) {
         }
     }
 
-    int ret = vfs_read(((vnode_t *)file->private), size, file->offset, out);
+    size_t bytes = size;
+    size_t offset = file->offset;
+    int ret = ((vnode_t *)file->private)->ops->read(
+        ((vnode_t *)file->private), &bytes, &offset, out);
+    
     if (ret != 0) {
         return 0;
     }
 
-    file->offset += size;
-    return size;
+    file->offset = offset;
+    return bytes;
 }
 
 int write(fileio_t *file, void *buf, size_t size) {

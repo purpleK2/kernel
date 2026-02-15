@@ -4,6 +4,7 @@
 #include "memory/heap/kheap.h"
 #include "stdio.h"
 #include "structures/ringbuffer.h"
+#include "uaccess.h"
 #include <util/assert.h>
 #include <string.h>
 
@@ -63,45 +64,90 @@ static int tty_read(struct device *dev, void *buffer, size_t size, size_t offset
 
 	size_t vmin = tty->termios.c_cc[VMIN];
 
-    while (rb_size(&tty->input_buffer) < vmin) {
-        waitqueue_sleep(&tty->read_queue);
-    }
-
 	spinlock_acquire(&tty->input_buffer_lock);
-    size_t result = rb_read(&tty->input_buffer, buffer, size, 0);
+	while (rb_size(&tty->input_buffer) < vmin) {
+    	spinlock_release(&tty->input_buffer_lock);
+    	waitqueue_sleep(&tty->read_queue);
+    	spinlock_acquire(&tty->input_buffer_lock);
+	}
+
+	size_t result = rb_read(&tty->input_buffer, buffer, size, 0);
 	spinlock_release(&tty->input_buffer_lock);
 	return result;
 }
 
 static int tty_ioctl(struct device *dev, int request, void *arg) {
-	tty_t *tty = (tty_t *)dev->data;
-	switch (request) {
-	case TIOCGETA:
-		*(struct termios *)arg = tty->termios;
-		return 0;
-	case TIOCSETA:
-	case TIOCSETAF:
-	case TIOCSETAW:
-		tty->termios = *(struct termios *)arg;
-		return 0;
-	case TIOCGPGRP:
-		*(pid_t *)arg =  tty->fg_pgrp;
-		return 0;
-	case TIOCSPGRP:
-		tty->fg_pgrp = *(pid_t *)arg;
-		return 0;
-	case TIOCSWINSZ:
-		tty->winsize = *(winsize_t *)arg;
-		return 0;
-	case TIOCGWINSZ:
-		*(struct winsize *)arg = tty->winsize;
-		return 0;
-	default:
-		if (tty->ops->ioctl) {
-			return tty->ops->ioctl(tty, request, arg);
-		}
-		return -EINVAL;
-	}
+    tty_t *tty = (tty_t *)dev->data;
+    int ret;
+    
+    switch (request) {
+    case TIOCGETA: {
+        struct termios tmp;
+        tmp = tty->termios;
+        ret = copy_to_user(arg, &tmp, sizeof(struct termios));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        return 0;
+    }
+    
+    case TIOCSETA:
+    case TIOCSETAF:
+    case TIOCSETAW: {
+        struct termios tmp;
+        ret = copy_from_user(&tmp, arg, sizeof(struct termios));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        tty->termios = tmp;
+        return 0;
+    }
+    
+    case TIOCGPGRP: {
+        pid_t tmp = tty->fg_pgrp;
+        ret = copy_to_user(arg, &tmp, sizeof(pid_t));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        return 0;
+    }
+    
+    case TIOCSPGRP: {
+        pid_t tmp;
+        ret = copy_from_user(&tmp, arg, sizeof(pid_t));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        tty->fg_pgrp = tmp;
+        return 0;
+    }
+    
+    case TIOCSWINSZ: {
+        winsize_t tmp;
+        ret = copy_from_user(&tmp, arg, sizeof(winsize_t));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        tty->winsize = tmp;
+        return 0;
+    }
+    
+    case TIOCGWINSZ: {
+        winsize_t tmp;
+        tmp = tty->winsize;
+        ret = copy_to_user(arg, &tmp, sizeof(winsize_t));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        return 0;
+    }
+    
+    default:
+        if (tty->ops->ioctl) {
+            return tty->ops->ioctl(tty, request, arg);
+        }
+        return -EINVAL;
+    }
 }
 
 int tty_input(tty_t *tty, char c) {

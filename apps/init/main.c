@@ -2,10 +2,16 @@
 // freestanding userspace program for your OS
 
 #include <stdint.h>
+#include "structs.h"
 typedef unsigned long  uint64_t;
 typedef long           int64_t;
 typedef unsigned long  size_t;
 typedef unsigned int   uint32_t;
+
+#define	TIOCGETA 19
+#define	TIOCSETA 20
+#define	TIOCSETAW 21
+#define	TIOCSETAF 22
 
 /* syscall numbers */
 #define SYS_EXIT      0
@@ -2109,6 +2115,66 @@ void main(uintptr_t *stack_ptr) {
     } else {
         print(fd, "Failed to open /dev/ttyS0!\n");
     }
+
+    ttys0fd = syscall3(SYS_OPEN, (uint64_t)"/dev/ttyS0", 0, 0);
+    if (ttys0fd < 0) {
+        print(1, "Failed to open /dev/ttyS0\n");
+        return;
+    }
+
+    // Get current terminal settings
+    struct termios term;
+    syscall3(SYS_IOCTL, ttys0fd, TIOCGETA, (uint64_t)&term);
+
+    // Save original settings to restore later
+    struct termios orig_term = term;
+
+    // Configure RAW mode (like cfmakeraw())
+    term.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ISIG | IEXTEN);
+    term.c_iflag &= ~(ICRNL | INLCR | IGNCR | ISTRIP);
+    term.c_oflag &= ~(OPOST);
+    
+    // Set read to return immediately with whatever is available
+    term.c_cc[VMIN] = 0;   // Minimum characters to read (0 = non-blocking)
+    term.c_cc[VTIME] = 0;  // Timeout in deciseconds (0 = no timeout)
+
+    // Apply settings
+    syscall3(SYS_IOCTL, ttys0fd, TIOCSETA, (uint64_t)&term);
+
+    print(ttys0fd, "Raw mode test - type some keys, press 'q' to quit\r\n");
+
+    char buf[128];
+    for (int i = 0; i < 128; i++) buf[i] = 0;
+    while (1) {
+        int64_t n = syscall3(SYS_READ, ttys0fd, (uint64_t)buf, 1);
+        
+        if (n > 0) {
+            char c = buf[0];
+            
+            // Echo it ourselves with brackets to show it worked
+            print(ttys0fd, "[Got: 0x");
+            print_hex(ttys0fd, c);
+            print(ttys0fd, " '");
+            if (c >= 32 && c < 127) {
+                syscall3(SYS_WRITE, ttys0fd, (uint64_t)&c, 1);
+            } else {
+                print(ttys0fd, "?");
+            }
+            print(ttys0fd, "']\r\n");
+            
+            if (c == 'q' || c == 'Q') {
+                break;
+            }
+        }
+        // If n == 0, no data available (non-blocking)
+        // You could do other work here instead of busy-waiting
+    }
+
+    // Restore original settings
+    syscall3(SYS_IOCTL, ttys0fd, TIOCSETA, (uint64_t)&orig_term);
+    print(ttys0fd, "Restored terminal settings\r\n");
+    
+    syscall1(SYS_CLOSE, ttys0fd);
 
     
     syscall1(SYS_EXIT, thread_local_var);

@@ -1,6 +1,7 @@
 #include "ringbuffer.h"
 
 #include <memory/heap/kheap.h>
+#include <string.h>
 
 bool rb_init(ringbuffer_t *rb, size_t capacity) {
    if (!rb || capacity == 0) {
@@ -11,6 +12,7 @@ bool rb_init(ringbuffer_t *rb, size_t capacity) {
    if (!rb->buffer) {
         return false;
    }
+   memset(rb->buffer, 0, capacity);
 
     rb->capacity = capacity;
     rb->head = 0;
