@@ -19,7 +19,6 @@ typedef unsigned int tcflag_t;
 #define VSUSP  10 // suspend character (send SIGSTOP)
 #define VTIME  11 // timeout for noncanonical read (in deciseconds)
 
-
 typedef struct termios {
     tcflag_t c_iflag;   // input modes
     tcflag_t c_oflag;   // output modes

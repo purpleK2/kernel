@@ -151,6 +151,7 @@ static int tty_ioctl(struct device *dev, int request, void *arg) {
 }
 
 int tty_input(tty_t *tty, char c) {
+    debugf_debug("tty_input: %d (0x%x)\n", c, c);
     if (tty->termios.c_iflag & INLCR) {
         if (c == '\n') {
             c = '\r';
@@ -179,22 +180,25 @@ int tty_input(tty_t *tty, char c) {
         c &= 0x7F;
     }
 
-    if (tty->termios.c_lflag & ISIG) {
+    if (tty->termios.c_lflag & ISIG || 1) {
 		if (c == tty->termios.c_cc[VINTR]) {
 			if (tty->fg_pgrp) {
 				// when signals, send sigint
+                debugf_debug("SIGINT\n");
 			}
 		}
 
 		if (c == tty->termios.c_cc[VQUIT]) {
 			if (tty->fg_pgrp) {
 				// when signals, send sigquit
+                debugf_debug("SIGQUIT\n");
 			}
         }
 
 		if (c == tty->termios.c_cc[VSUSP]) {
 			if (tty->fg_pgrp)  {
 				// when signals, send sigtstp
+                debugf_debug("SIGTSTP\n");
 			}
 		}
 	}

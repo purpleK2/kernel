@@ -201,9 +201,6 @@ void ps2_keyboard_handler(registers_t *regs) {
         if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
             tty_t *vt_tty = vts[active_vt]->tty;
 
-            debugf_debug("VT%d: Received key '%c' (scancode 0x%02x, ascii 0x%02x)\n",
-                 active_vt, ascii, scancode, ascii);
-
             tty_input(vt_tty, ascii);
         }
     }
