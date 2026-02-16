@@ -163,8 +163,6 @@ static tty_ops_t vt_tty_ops = {
 static int vt_ioctl_handler(tty_t *tty, long request, void *arg) {
     (void)tty;
     int ret;
-
-    debugf_debug("VT ioctl: request=0x%lx\n", request);
     
     switch (request) {
     case VT_ACTIVATE: {
@@ -252,6 +250,21 @@ static int vt_ioctl_handler(tty_t *tty, long request, void *arg) {
     }
 }
 
+static int tty0_ioctl(struct device *dev, int request, void *arg) {
+    (void)dev;
+    
+    if (request == VT_ACTIVATE || request == VT_GETSTATE || 
+        request == VT_OPENQRY || request == VT_WAITACTIVE) {
+        return vt_ioctl_handler(NULL, request, arg);
+    }
+    
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty->device.ioctl(&vts[active_vt]->tty->device, request, arg);
+    }
+    
+    return -EINVAL;
+}
+
 static ssize_t tty0_output(tty_t *tty, const char *buf, size_t size) {
     (void)tty;
     
@@ -262,8 +275,19 @@ static ssize_t tty0_output(tty_t *tty, const char *buf, size_t size) {
     return 0;
 }
 
+static int tty0_read(struct device *dev, void *buffer, size_t size, size_t offset) {
+    (void)dev;
+    (void)offset;
+    
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty->device.read(&vts[active_vt]->tty->device, buffer, size, offset);
+    }
+    
+    return 0;
+}
+
 static tty_ops_t tty0_ops = {
-    .ioctl = vt_ioctl_handler,
+    .ioctl = NULL,
     .out = tty0_output,
     .cleanup = NULL
 };
@@ -276,12 +300,40 @@ void vt_create_tty0(void) {
     }
     
     tty0->ops = &tty0_ops;
+    tty0->device.read = tty0_read;
+    tty0->device.ioctl = tty0_ioctl;
     
     snprintf(tty0->device.name, DEVICE_NAME_MAX, "tty0");
     tty0->device.dev_node_path = "tty0";
     register_device(&tty0->device);
     
     debugf_debug("Created tty0 (current VT)\n");
+}
+
+static int console_ioctl(struct device *dev, int request, void *arg) {
+    (void)dev;
+    
+    if (request == VT_ACTIVATE || request == VT_GETSTATE || 
+        request == VT_OPENQRY || request == VT_WAITACTIVE) {
+        return vt_ioctl_handler(NULL, request, arg);
+    }
+    
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty->device.ioctl(&vts[active_vt]->tty->device, request, arg);
+    }
+    
+    return -EINVAL;
+}
+
+static int console_read(struct device *dev, void *buffer, size_t size, size_t offset) {
+    (void)dev;
+    (void)offset;
+    
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty->device.read(&vts[active_vt]->tty->device, buffer, size, offset);
+    }
+    
+    return 0;
 }
 
 static ssize_t console_output(tty_t *tty, const char *buf, size_t size) {
@@ -295,7 +347,7 @@ static ssize_t console_output(tty_t *tty, const char *buf, size_t size) {
 }
 
 static tty_ops_t console_ops = {
-    .ioctl = vt_ioctl_handler,
+    .ioctl = NULL,
     .out = console_output,
     .cleanup = NULL
 };
@@ -308,6 +360,8 @@ void vt_create_console(void) {
     }
     
     console->ops = &console_ops;
+    console->device.read = console_read;
+    console->device.ioctl = console_ioctl;
     
     snprintf(console->device.name, DEVICE_NAME_MAX, "console");
     console->device.dev_node_path = "console";
@@ -398,7 +452,6 @@ void vt_init(void) {
     }
 
     vt_create_tty0();
-
     vt_create_console();
     
     if (vts[1]) {

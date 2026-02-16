@@ -522,6 +522,13 @@ void kstart(void) {
        initialized before this function.
     */
 
+    mod_t *ps2 = load_module("/kmod/ps2.km");
+    if (!ps2) {
+        debugf_warn("Couldn't find PS/2 driver!\n");
+    } else {
+        start_module(ps2);
+    }
+
     global_vmc_init(kvmc);
 
     init_cpu_scheduler();
