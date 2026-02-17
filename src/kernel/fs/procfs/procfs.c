@@ -479,7 +479,7 @@ int procfs_open(vnode_t **vout, int flags, bool clone, fileio_t **fout) {
     UNUSED(clone); // TODO: use the clone :kekw:
 
     if (!vout || !(*vout)) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     vnode_t *vnode   = *vout;
@@ -503,7 +503,7 @@ int procfs_open(vnode_t **vout, int flags, bool clone, fileio_t **fout) {
     // create fio_t struct
     fileio_t *fio = *fout;
     if (!fout || !fio) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     fio->buf_start = procfs_get_node_buf(pvnode);
@@ -517,7 +517,7 @@ int procfs_read(vnode_t *vnode, size_t *size, size_t *offset, void *out) {
     // depends on the file
 
     if (!vnode) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     memset(out, 0, (*size));
@@ -558,12 +558,12 @@ int procfs_close(vnode_t *vnode, int flags, bool clone) {
     UNUSED(clone);
 
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     procfs_vnode_t *pvnode = vnode->node_data;
     if (!pvnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     kfree(vnode->node_data);
@@ -574,23 +574,23 @@ int procfs_close(vnode_t *vnode, int flags, bool clone) {
 
 int procfs_ioctl(vnode_t *vnode, int request, void *arg) {
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     UNUSED(request);
     UNUSED(arg);
 
-    return ENOIMPL;
+    return ENOSYS;
 }
 
 int procfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
     if (!parent || !name || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     procfs_t *procfs = parent->root_vfs->vfs_data;
     if (!procfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     char *rel_path = parent->path + strlen(parent->root_vfs->root_vnode->path);
@@ -702,7 +702,7 @@ int procfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
 
 int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
     if (!vnode || !entries || !count) {
-        return ENULLPTR;
+        return EFAULT;
     }
     if (vnode->vtype != VNODE_DIR) {
         return ENOTDIR;
@@ -710,7 +710,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
 
     procfs_t *procfs = vnode->root_vfs->vfs_data;
     if (!procfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     char *rel_path = vnode->path + strlen(vnode->root_vfs->root_vnode->path);
@@ -821,7 +821,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
 
 int procfs_readlink(vnode_t *vnode, char *buf, size_t size) {
 	if (!vnode || !buf) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (vnode->vtype != VNODE_LINK) {
@@ -870,7 +870,7 @@ static int procfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
     UNUSED(data);
     
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     return EOK;
@@ -878,7 +878,7 @@ static int procfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
 
 static int procfs_vfs_unmount(vfs_t *vfs) {
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     procfs_t *procfs = vfs->vfs_data;
@@ -891,7 +891,7 @@ static int procfs_vfs_unmount(vfs_t *vfs) {
 
 static int procfs_vfs_root(vfs_t *vfs, vnode_t **out) {
     if (!vfs || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     *out = vfs->root_vnode;
@@ -902,12 +902,12 @@ static int procfs_vfs_root(vfs_t *vfs, vnode_t **out) {
 
 static int procfs_vfs_statfs(vfs_t *vfs, statfs_t *stat) {
     if (!vfs || !stat) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     procfs_t *procfs = vfs->vfs_data;
     if (!procfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     stat->block_size = 1;
@@ -981,12 +981,12 @@ void procfs_init(void) {
 
 int procfs_vfs_init(procfs_t *procfs, char *path) {
     if (!path) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     vfs_t *vfs = vfs_mount(procfs, "procfs", path, NULL);
     if (!vfs) {
-        return EUNFB;
+        return ENOTRECOVERABLE;
     }
 
     return EOK;

@@ -26,7 +26,7 @@ int binfmt_register_loader(binfmt_loader_t *loader) {
 
 int binfmt_load(const char *path, const char **argv, const char **envp, binfmt_program_t *out) {
     if (!path || !out) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     for (int i = 0; i < binfmt_loader_count; i++) {
@@ -62,7 +62,7 @@ int binfmt_load(const char *path, const char **argv, const char **envp, binfmt_p
 
 int binfmt_run(binfmt_program_t *prog) {
     if (!prog) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     if (!prog->pcb) {

@@ -59,7 +59,7 @@ pcie_status check_pcie_device(pcie_header_t *header) {
 // append a device to the list
 pcie_status pcie_append_to_list(pcie_device_t **list, pcie_device_t *dev) {
     if (!list) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (!(*list)) {

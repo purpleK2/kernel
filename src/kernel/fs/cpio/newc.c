@@ -207,7 +207,7 @@ int cpio_extract(cpio_t *cpio, char *dest_path) {
     if (!cpio || !dest_path) {
         debugf_warn("Missing CPIO archive, or destination path (%p, %p).\n",
                     cpio, dest_path);
-        return ENULLPTR;
+        return EFAULT;
     }
 
     const char *base = normalize_dest(dest_path);

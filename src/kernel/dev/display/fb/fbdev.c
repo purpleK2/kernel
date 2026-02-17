@@ -124,7 +124,7 @@ int dev_fb_read(device_t *dev, void *buffer, size_t size, size_t offset) {
     UNUSED(buffer);
     UNUSED(size);
     UNUSED(offset);
-    return -ENOIMPL;
+    return -ENOSYS;
 }
 int dev_fb_ioctl(device_t *dev, int request, void *argp) {
     switch (request) {

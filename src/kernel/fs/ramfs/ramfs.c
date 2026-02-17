@@ -91,7 +91,7 @@ int ramfs_find_node(ramfs_t *ramfs, char *path, ramfs_node_t **out) {
  */
 int ramfs_node_add(ramfs_t *ramfs, char *path, ramfs_node_t **out) {
     if (!ramfs || !ramfs->root_node || !path) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (path[0] == '/') {
@@ -157,7 +157,7 @@ int ramfs_node_add(ramfs_t *ramfs, char *path, ramfs_node_t **out) {
 
         if (!cur_node) {
             // something went really wrong lol
-            return EUNFB;
+            return ENOTRECOVERABLE;
         }
     }
 
@@ -236,7 +236,7 @@ int ramfs_print(ramfs_node_t *node, int lvl) {
 
 size_t ramfs_get_node_size(ramfs_node_t *node) {
     if (!node) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     size_t s = 0;
@@ -270,14 +270,14 @@ int ramfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
 
     vnode_t *vnode = *vnode_r;
     if (!vnode || !vnode_r) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     // vfs_data should have the root RAMFS struct
     ramfs_t *ramfs = vnode->root_vfs->vfs_data;
 
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *ramfs_node;
@@ -295,7 +295,7 @@ int ramfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
 
             // create the node
             if (ramfs_node_add(ramfs, vnode->path, &ramfs_node) != EOK) {
-                return EUNFB;
+                return ENOTRECOVERABLE;
             }
 
             if (flags & V_DIR) {
@@ -333,7 +333,7 @@ int ramfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
 
     fileio_t *fio = *fio_out;
     if (!fio || !fio_out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     fio->buf_start = v_ramfs_node->data;
@@ -345,20 +345,20 @@ int ramfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
 
 int ramfs_read(vnode_t *vn, size_t *bytes, size_t *offset, void *out) {
     if (!vn) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     memset(out, 0, (*bytes));
 
     ramfs_node_t *ramfs_node = (ramfs_node_t *)vn->node_data;
     if (!ramfs_node) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     if ((*bytes) > ramfs_node->size) {
         (*bytes) = ramfs_node->size;
     } else if ((*offset) >= ramfs_node->size) {
-        return -ENOCFG;
+        return -EINVAL;
     }
 
     if ((*bytes) + (*offset) > ramfs_node->size) {
@@ -374,12 +374,12 @@ int ramfs_read(vnode_t *vn, size_t *bytes, size_t *offset, void *out) {
 
 int ramfs_write(vnode_t *vn, void *buf, size_t *bytes, size_t *offset) {
     if (!vn) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *ramfs_node = vn->node_data;
     if (!ramfs_node) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if ((*bytes) + (*offset) > ramfs_node->size) {
@@ -405,19 +405,19 @@ int ramfs_close(vnode_t *vnode, int flags, bool clone) {
     // TODO: clone
 
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *ramfs_node = vnode->node_data;
     if (!ramfs_node) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     // we'll sync the new buffer
 
     ramfs_t *ramfs = vnode->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *ramfs_node_original;
@@ -443,23 +443,23 @@ int ramfs_close(vnode_t *vnode, int flags, bool clone) {
 
 int ramfs_ioctl(vnode_t *vnode, int request, void *arg) {
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     UNUSED(request);
     UNUSED(arg);
 
-    return ENOIMPL;
+    return ENOSYS;
 }
 
 int ramfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
     if (!parent || !name || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -528,7 +528,7 @@ int ramfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
 
 int ramfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
     if (!vnode || !entries || !count) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (vnode->vtype != VNODE_DIR) {
@@ -537,7 +537,7 @@ int ramfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
 
     ramfs_t *ramfs = vnode->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *dir_node = vnode->node_data;
@@ -583,7 +583,7 @@ int ramfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
 
 int ramfs_readlink(vnode_t *vnode, char *buf, size_t size) {
     if (!vnode || !buf) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (vnode->vtype != VNODE_LINK) {
@@ -612,12 +612,12 @@ int ramfs_mkdir(vnode_t *parent, const char *name, int mode) {
     UNUSED(mode);
 
     if (!parent || !name) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -650,12 +650,12 @@ int ramfs_mkdir(vnode_t *parent, const char *name, int mode) {
 
 int ramfs_rmdir(vnode_t *parent, const char *name) {
     if (!parent || !name) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -695,12 +695,12 @@ int ramfs_rmdir(vnode_t *parent, const char *name) {
 
 int ramfs_create(vnode_t *parent, const char *name, mode_t mode, vnode_t **out) {
     if (!parent || !name || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -761,12 +761,12 @@ int ramfs_create(vnode_t *parent, const char *name, mode_t mode, vnode_t **out) 
 
 int ramfs_remove(vnode_t *parent, const char *name) {
     if (!parent || !name) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -804,12 +804,12 @@ int ramfs_remove(vnode_t *parent, const char *name) {
 
 int ramfs_symlink(vnode_t *parent, const char *name, const char *target) {
     if (!parent || !name || !target) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = parent->root_vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_node_t *parent_node = parent->node_data;
@@ -862,7 +862,7 @@ static int ramfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
     UNUSED(data);
 
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     return EOK;
@@ -870,7 +870,7 @@ static int ramfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
 
 static int ramfs_vfs_unmount(vfs_t *vfs) {
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = vfs->vfs_data;
@@ -883,7 +883,7 @@ static int ramfs_vfs_unmount(vfs_t *vfs) {
 
 static int ramfs_vfs_root(vfs_t *vfs, vnode_t **out) {
     if (!vfs || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     *out = vfs->root_vnode;
@@ -894,12 +894,12 @@ static int ramfs_vfs_root(vfs_t *vfs, vnode_t **out) {
 
 static int ramfs_vfs_statfs(vfs_t *vfs, statfs_t *stat) {
     if (!vfs || !stat) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     ramfs_t *ramfs = vfs->vfs_data;
     if (!ramfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     stat->block_size   = 1;
@@ -976,12 +976,12 @@ void ramfs_init(void) {
 
 int ramfs_vfs_init(ramfs_t *ramfs, char *path) {
     if (!path) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     vfs_t *vfs = vfs_mount(ramfs, "ramfs", path, NULL);
     if (!vfs) {
-        return EUNFB;
+        return ENOTRECOVERABLE;
     }
 
     return EOK;

@@ -892,7 +892,7 @@ int pcb_destroy(int pid) {
     pcb_t *p = pcb_lookup(pid);
     if (!p) {
         debugf_warn("pcb_destroy: PID=%d not found\n", pid);
-        return ENULLPTR;
+        return EFAULT;
     }
 
     p->state = PROC_DEAD;
@@ -948,7 +948,7 @@ void thread_remove_from_queue(tcb_t *to_remove) {
 int thread_destroy(int pid, int tid) {
     tcb_t *t = tcb_lookup(pid, tid);
     if (!t) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     t->state = THREAD_DEAD;
@@ -968,7 +968,7 @@ int proc_exit(int exit_code) {
     tcb_t *current = current_threads[cpu];
 
     if (!current || !current->parent) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     int pid = current->parent->pid;

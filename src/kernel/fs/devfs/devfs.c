@@ -45,7 +45,7 @@ devfs_node_t *devfs_create_fs_node(devfs_ftype_t ftype) {
 
 int devfs_find_node(devfs_t *devfs, char *path, devfs_node_t **out) {
     if (!devfs || !devfs->root_node || !path || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     *out = NULL;
@@ -90,7 +90,7 @@ int devfs_find_node(devfs_t *devfs, char *path, devfs_node_t **out) {
 
 int devfs_node_add(devfs_t *devfs, char *path, devfs_node_t **out) {
     if (!devfs || !devfs->root_node || !path || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     if (path[0] == '/') path++;
@@ -312,12 +312,12 @@ int devfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
     UNUSED(clone);
 
     if (!vnode_r || !*vnode_r || !fio_out || !*fio_out)
-        return ENULLPTR;
+        return EFAULT;
 
     vnode_t *vnode = *vnode_r;
     devfs_t *devfs = vnode->root_vfs->vfs_data;
     if (!devfs)
-        return ENULLPTR;
+        return EFAULT;
 
     devfs_node_t *devfs_node = NULL;
 
@@ -331,7 +331,7 @@ int devfs_open(vnode_t **vnode_r, int flags, bool clone, fileio_t **fio_out) {
             return ENOENT;
 
         if (devfs_node_add(devfs, rel_path, &devfs_node) != EOK)
-            return EUNFB;
+            return ENOTRECOVERABLE;
     }
 
     vnode->node_data = devfs_node;
@@ -348,7 +348,7 @@ int devfs_close(vnode_t *vnode, int flags, bool clone) {
     UNUSED(flags);
     UNUSED(clone);
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     return EOK;
@@ -356,14 +356,14 @@ int devfs_close(vnode_t *vnode, int flags, bool clone) {
 
 int devfs_ioctl(vnode_t *vnode, int request, void *arg) {
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     device_t *dev =
         vnode->node_data ? ((devfs_node_t *)vnode->node_data)->device : NULL;
 
     if (!dev || !dev->ioctl) {
-        return ENOIMPL;
+        return ENOSYS;
     }
 
     return dev->ioctl(dev, request, arg);
@@ -371,12 +371,12 @@ int devfs_ioctl(vnode_t *vnode, int request, void *arg) {
 
 int devfs_read(vnode_t *vn, size_t *bytes, size_t *offset, void *out) {
     if (!vn || !bytes || !offset || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     devfs_node_t *node = vn->node_data;
     if (!node || !node->device || !node->device->read) {
-        return ENOIMPL;
+        return ENOSYS;
     }
 
     int ret = node->device->read(
@@ -398,12 +398,12 @@ int devfs_read(vnode_t *vn, size_t *bytes, size_t *offset, void *out) {
 
 int devfs_write(vnode_t *vn, void *buf, size_t *bytes, size_t *offset) {
     if (!vn || !buf || !bytes || !offset) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     devfs_node_t *node = vn->node_data;
     if (!node || !node->device || !node->device->write) {
-        return ENOIMPL;
+        return ENOSYS;
     }
 
     int ret = node->device->write(
@@ -423,7 +423,7 @@ int devfs_write(vnode_t *vn, void *buf, size_t *bytes, size_t *offset) {
 }
 
 int devfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
-    if (!parent || !name || !out) return ENULLPTR;
+    if (!parent || !name || !out) return EFAULT;
 
     devfs_node_t *pnode = parent->node_data;
     if (!pnode) return ENOENT;
@@ -462,7 +462,7 @@ int devfs_lookup(vnode_t *parent, const char *name, vnode_t **out) {
 }
 
 int devfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
-    if (!vnode || !entries || !count) return ENULLPTR;
+    if (!vnode || !entries || !count) return EFAULT;
     if (vnode->vtype != VNODE_DIR) return ENOTDIR;
 
     devfs_node_t *dir = vnode->node_data;
@@ -490,12 +490,12 @@ int devfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
 static int devfs_mmap(vnode_t *vnode, void *addr, size_t length, int prot, int flags, size_t offset) {
     // call mmap on the device
     if (!vnode || !addr) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     devfs_node_t *node = vnode->node_data;
     if (!node || !node->device || !node->device->mmap) {
-        return ENOIMPL;
+        return ENOSYS;
     }
 
     return node->device->mmap(node->device, addr, length, prot, flags, offset);
@@ -517,7 +517,7 @@ static int devfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
     UNUSED(data);
     
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     return EOK;
@@ -525,7 +525,7 @@ static int devfs_vfs_mount(vfs_t *vfs, char *path, void *data) {
 
 static int devfs_vfs_unmount(vfs_t *vfs) {
     if (!vfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     devfs_t *devfs = vfs->vfs_data;
@@ -538,7 +538,7 @@ static int devfs_vfs_unmount(vfs_t *vfs) {
 
 static int devfs_vfs_root(vfs_t *vfs, vnode_t **out) {
     if (!vfs || !out) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     *out = vfs->root_vnode;
@@ -549,12 +549,12 @@ static int devfs_vfs_root(vfs_t *vfs, vnode_t **out) {
 
 static int devfs_vfs_statfs(vfs_t *vfs, statfs_t *stat) {
     if (!vfs || !stat) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     devfs_t *devfs = vfs->vfs_data;
     if (!devfs) {
-        return ENULLPTR;
+        return EFAULT;
     }
     
     stat->block_size = 1;
@@ -668,12 +668,12 @@ void devfs_init(void) {
 
 int devfs_vfs_init(devfs_t *devfs, char *mount_path) {
     if (!mount_path) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     vfs_t *vfs = vfs_mount(devfs, "devfs", mount_path, NULL);
     if (!vfs) {
-        return EUNFB;
+        return ENOTRECOVERABLE;
     }
 
     return EOK;

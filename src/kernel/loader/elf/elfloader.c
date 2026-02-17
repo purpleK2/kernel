@@ -251,7 +251,7 @@ static int setup_initial_stack(pcb_t *proc,
 int load_elf(const char *path, const char **argv, const char **envp, binfmt_program_t *out) {
     asm volatile("cli");
     if (!path || !out) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     debugf_debug("Loading ELF binary from %s\n", path);

@@ -438,7 +438,7 @@ static int vfs_lookup_internal(const char *path, vnode_t **out, int depth,
         if (get_current_cred() && vnode_permission(get_current_cred(), current, X_OK) != 0) {
             vnode_unref(current);
             kfree(rel_path);
-            return -EACCESS;
+            return -EACCES;
         }
 
         if (!current->ops || !current->ops->lookup) {
@@ -572,7 +572,7 @@ int vfs_open(const char *path, int flags, fileio_t **out) {
     int ret        = vfs_lookup(path, &vnode);
 
     if (get_current_cred() && vnode_permission(get_current_cred(), vnode, required_perms) != 0) {
-        return -EACCESS;
+        return -EACCES;
     }
 
     if (ret == ENOENT && (flags & V_CREATE)) {
@@ -629,7 +629,7 @@ int vfs_open(const char *path, int flags, fileio_t **out) {
 
 int vfs_read(vnode_t *vnode, size_t size, size_t offset, void *out) {
     if (!vnode) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     int ret = vnode->ops->read(vnode, &size, &offset, out);
@@ -639,7 +639,7 @@ int vfs_read(vnode_t *vnode, size_t size, size_t offset, void *out) {
 
 int vfs_write(vnode_t *vnode, void *buf, size_t size, size_t offset) {
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     int ret = vnode->ops->write(vnode, buf, &size, &offset);
@@ -649,7 +649,7 @@ int vfs_write(vnode_t *vnode, void *buf, size_t size, size_t offset) {
 
 int vfs_ioctl(vnode_t *vnode, int request, void *arg) {
     if (!vnode) {
-        return ENULLPTR;
+        return EFAULT;
     }
 
     int ret = vnode->ops->ioctl(vnode, request, arg);
@@ -659,7 +659,7 @@ int vfs_ioctl(vnode_t *vnode, int request, void *arg) {
 
 int vfs_close(vnode_t *vnode) {
     if (!vnode) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     if (!vnode->ops || !vnode->ops->close) {
@@ -714,7 +714,7 @@ int vfs_mkdir(const char *path, int mode) {
     if (get_current_cred() && vnode_permission(get_current_cred(), parent, W_OK) != 0) {
         vnode_unref(parent);
         kfree(dirname);
-        return -EACCESS;
+        return -EACCES;
     }
 
     ret = parent->ops->mkdir(parent, dirname, mode);
@@ -744,7 +744,7 @@ int vfs_rmdir(const char *path) {
     if (get_current_cred() && vnode_permission(get_current_cred(), parent, W_OK | X_OK) != 0) {
         vnode_unref(parent);
         kfree(dirname);
-        return -EACCESS;
+        return -EACCES;
     }
 
     ret = parent->ops->rmdir(parent, dirname);
@@ -774,7 +774,7 @@ int vfs_remove(const char *path) {
     if (get_current_cred() && vnode_permission(get_current_cred(), parent, W_OK | X_OK) != 0) {
         vnode_unref(parent);
         kfree(filename);
-        return -EACCESS;
+        return -EACCES;
     }
 
     ret = parent->ops->remove(parent, filename);

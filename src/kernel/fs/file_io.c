@@ -134,7 +134,7 @@ int close(fileio_t *file) {
 
 size_t seek(fileio_t *file, size_t offset, fseek_t whence) {
     if (!file) {
-        return -ENULLPTR;
+        return -EFAULT;
     }
 
     switch (whence) {

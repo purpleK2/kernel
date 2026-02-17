@@ -17,7 +17,7 @@ bool is_in_group(const user_cred_t *cred, gid_t gid) {
 
 int vnode_permission(const user_cred_t *cred, const vnode_t *vnode, int mask) {
     if (!cred || !vnode)
-        return -ENULLPTR;
+        return -EFAULT;
 
     mode_t mode = vnode->mode;
 

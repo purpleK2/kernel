@@ -40,7 +40,7 @@ static int diskdev_ctl(struct device *dev, int request, void *arg) {
     (void)request;
     (void)arg;
     debugf_warn("diskdev_ctl not implemented on disk device %s\n", dev->name);
-    return -ENOIMPL;
+    return -ENOSYS;
 }
 
 static void remove_disk_from_list(disk_device_t *disk)
@@ -114,7 +114,7 @@ int register_disk_device(disk_device_t *disk) {
 
     if (disk->dev != NULL) {
         debugf_warn("Disk device %s already registered!\n", final_name);
-        return -EUNFB;
+        return -ENOTRECOVERABLE;
     }
 
     device_t *dev = kmalloc(sizeof(device_t));
