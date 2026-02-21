@@ -22,7 +22,6 @@
 #include <dev/fs/initrd.h>
 #include <dev/port/e9/e9.h>
 #include <dev/port/parallel/parallel.h>
-#include <dev/port/serial/serial.h>
 #include <dev/std/helper.h>
 
 #include <fs/cpio/newc.h>
@@ -463,7 +462,6 @@ void kstart(void) {
     register_std_devices();
     dev_initrd_init(initrd->address);
     dev_e9_init();
-    dev_serial_init();
     dev_parallel_init();
     dev_fb_init();
 #endif
@@ -527,6 +525,13 @@ void kstart(void) {
         debugf_warn("Couldn't find PS/2 driver!\n");
     } else {
         start_module(ps2);
+    }
+
+    mod_t *serial = load_module("/kmod/serial.km");
+    if (!serial) {
+        debugf_warn("Couldn't find Serial driver!\n");
+    } else {
+        start_module(serial);
     }
 
     global_vmc_init(kvmc);
