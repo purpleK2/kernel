@@ -60,6 +60,7 @@ System calls can be triggered using either the `syscall` instruction or with int
 #define SYS_getpgid 48
 #define SYS_setsid 49
 #define SYS_getsid 50
+#define SYS_settls 51
 ```
 
 A complete table of all syscalls
