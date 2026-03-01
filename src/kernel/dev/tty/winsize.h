@@ -19,4 +19,7 @@ typedef struct winsize {
 #define	TIOCGWINSZ 104
 #define	TIOCSWINSZ 103
 
+#define	TIOCSCTTY  0x540E
+#define	TIOCNOTTY  0x5422
+
 #endif // WINSIZE_H

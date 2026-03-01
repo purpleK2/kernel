@@ -144,6 +144,8 @@ typedef struct process {
     int pgid;
     int sid;
     int is_session_leader;
+    
+    void *ctty;
 } pcb_t;
 
 typedef struct cpu_thread_queue {

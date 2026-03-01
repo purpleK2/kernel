@@ -536,12 +536,13 @@ void kstart(void) {
 
     global_vmc_init(kvmc);
 
+    vt_init();
+
     init_cpu_scheduler();
 
     _disable_interrupts(); // just in case
     irq_registerHandler(0, scheduler_timer_tick);
 
-    vt_init();
     kprintf_ok("Scheduler initialized\n");
     _enable_interrupts();
 

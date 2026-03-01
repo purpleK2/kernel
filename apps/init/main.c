@@ -1833,7 +1833,8 @@ pipe_done:
 
 void main(uintptr_t *stack_ptr) {
     uint64_t *stack = (uint64_t *)stack_ptr;
-    uint64_t fd = syscall3(SYS_OPEN, (uint64_t)filename, 0, 0);
+    
+    uint64_t fd = 1; // stdout
 
     uint64_t pid = syscall0(SYS_GETPID);
     

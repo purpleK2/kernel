@@ -1,7 +1,9 @@
 #include "tty.h"
 #include "dev/tty/termios.h"
+#include "dev/tty/winsize.h"
 #include "errors.h"
 #include "memory/heap/kheap.h"
+#include "scheduler/scheduler.h"
 #include "stdio.h"
 #include "structures/ringbuffer.h"
 #include "uaccess.h"
@@ -138,6 +140,43 @@ static int tty_ioctl(struct device *dev, int request, void *arg) {
         ret = copy_to_user(arg, &tmp, sizeof(winsize_t));
         if (ret != 0) {
             return -EFAULT;
+        }
+        return 0;
+    }
+    
+    case TIOCSCTTY: {
+        pcb_t *proc = get_current_pcb();
+        if (!proc) {
+            return -ESRCH;
+        }
+        
+        if (!proc->is_session_leader) {
+            return -EPERM;
+        }
+        
+        if (proc->ctty != NULL && (uintptr_t)arg != 1) {
+            return -EPERM;
+        }
+        
+        proc->ctty = tty;
+        tty->fg_pgrp = proc->pgid;
+        return 0;
+    }
+    
+    case TIOCNOTTY: {
+        pcb_t *proc = get_current_pcb();
+        if (!proc) {
+            return -ESRCH;
+        }
+        
+        if (proc->ctty != tty) {
+            return -ENOTTY;
+        }
+        
+        proc->ctty = NULL;
+        
+        if (proc->is_session_leader) {
+            tty->fg_pgrp = 0;
         }
         return 0;
     }

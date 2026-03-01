@@ -2,6 +2,7 @@
 #include "dev/device.h"
 #include "errors.h"
 #include "memory/heap/kheap.h"
+#include "scheduler/scheduler.h"
 #include "stdio.h"
 #include "terminal/terminal.h"
 #include "uaccess.h"
@@ -370,6 +371,88 @@ void vt_create_console(void) {
     debugf_debug("Created console\n");
 }
 
+// /dev/tty - controlling terminal device
+// Routes to the current process's controlling terminal
+
+static int ctty_read(struct device *dev, void *buffer, size_t size, size_t offset) {
+    (void)dev;
+    (void)offset;
+    
+    pcb_t *proc = get_current_pcb();
+    if (!proc || !proc->ctty) {
+        return -ENXIO;
+    }
+    
+    tty_t *ctty = (tty_t *)proc->ctty;
+    return ctty->device.read(&ctty->device, buffer, size, offset);
+}
+
+static int ctty_write(struct device *dev, const void *buffer, size_t size, size_t offset) {
+    (void)dev;
+    (void)offset;
+    
+    pcb_t *proc = get_current_pcb();
+    if (!proc || !proc->ctty) {
+        return -ENXIO;
+    }
+    
+    tty_t *ctty = (tty_t *)proc->ctty;
+    return ctty->device.write(&ctty->device, buffer, size, offset);
+}
+
+static int ctty_ioctl(struct device *dev, int request, void *arg) {
+    (void)dev;
+    
+    pcb_t *proc = get_current_pcb();
+    if (!proc || !proc->ctty) {
+        return -ENXIO;
+    }
+    
+    tty_t *ctty = (tty_t *)proc->ctty;
+    return ctty->device.ioctl(&ctty->device, request, arg);
+}
+
+static ssize_t ctty_output(tty_t *tty, const char *buf, size_t size) {
+    (void)tty;
+    
+    pcb_t *proc = get_current_pcb();
+    if (!proc || !proc->ctty) {
+        return -ENXIO;
+    }
+    
+    tty_t *ctty = (tty_t *)proc->ctty;
+    if (ctty->ops && ctty->ops->out) {
+        return ctty->ops->out(ctty, buf, size);
+    }
+    
+    return 0;
+}
+
+static tty_ops_t ctty_ops = {
+    .ioctl = NULL,
+    .out = ctty_output,
+    .cleanup = NULL
+};
+
+void vt_create_ctty(void) {
+    tty_t *ctty_dev = tty_create(NULL);
+    if (!ctty_dev) {
+        debugf_warn("Failed to create /dev/tty\n");
+        return;
+    }
+    
+    ctty_dev->ops = &ctty_ops;
+    ctty_dev->device.read = ctty_read;
+    ctty_dev->device.write = ctty_write;
+    ctty_dev->device.ioctl = ctty_ioctl;
+    
+    snprintf(ctty_dev->device.name, DEVICE_NAME_MAX, "tty");
+    ctty_dev->device.dev_node_path = "tty";
+    register_device(&ctty_dev->device);
+    
+    debugf_debug("Created /dev/tty (controlling terminal)\n");
+}
+
 vt_t *vt_create(int vt_num) {
     if (vt_num < 1 || vt_num >= MAX_VTS)
         return NULL;
@@ -453,6 +536,7 @@ void vt_init(void) {
 
     vt_create_tty0();
     vt_create_console();
+    vt_create_ctty();
     
     if (vts[1]) {
         active_vt = 1;

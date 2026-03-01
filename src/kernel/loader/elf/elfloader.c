@@ -1,7 +1,10 @@
 #include "elfloader.h"
 #include "auxv.h"
 #include "caps.h"
+#include "dev/tty/tty.h"
 #include "elf/elf.h"
+#include "fs/devfs/devfs.h"
+#include "fs/fd.h"
 #include "fs/vfs/vfs.h"
 #include "loader/binfmt.h"
 #include "user/access.h"
@@ -349,6 +352,29 @@ int load_elf(const char *path, const char **argv, const char **envp, binfmt_prog
     if (vnode->mode & S_ISGID) {
         proc->cred->egid = vnode->gid;
         debugf_debug("Setting SETGID bit for PID=%d due to SGID file\n", pid);
+    }
+
+    if (pid == 1) {
+        fileio_t *console = open("/dev/console", 0, 0);
+        if (console && (int64_t)console > 0) {
+            fd_alloc(&proc->fd_table, FD_FILE, console);
+            fd_alloc(&proc->fd_table, FD_FILE, console);
+            fd_alloc(&proc->fd_table, FD_FILE, console);
+            
+            vnode_t *console_vnode = (vnode_t *)console->private;
+            if (console_vnode && console_vnode->node_data) {
+                devfs_node_t *devfs_node = (devfs_node_t *)console_vnode->node_data;
+                if (devfs_node->device && devfs_node->device->data) {
+                    tty_t *tty = (tty_t *)devfs_node->device->data;
+                    proc->ctty = tty;
+                    tty->fg_pgrp = proc->pgid;
+                }
+            }
+            
+            debugf_debug("Set up FDs 0/1/2 -> /dev/console for PID 1 (init)\n");
+        } else {
+            debugf_warn("Failed to open /dev/console for init process\n");
+        }
     }
 
     uint64_t *pml4 = (uint64_t *)PHYS_TO_VIRTUAL(proc->vmc->pml4_table);

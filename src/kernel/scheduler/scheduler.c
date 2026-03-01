@@ -298,10 +298,12 @@ int proc_create(void (*entry)(), int flags, char *name) {
         proc->pgid = proc->pid;
         proc->sid = proc->pid;
         proc->is_session_leader = 1;
+        proc->ctty = NULL;
     } else {
         proc->pgid = parent_pcb->pgid;
         proc->sid = parent_pcb->sid;
         proc->is_session_leader = 0;
+        proc->ctty = parent_pcb->ctty;
     }
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -530,6 +532,7 @@ int proc_fork(registers_t *regs) {
     child->pgid = parent->pgid;
     child->sid = parent->sid;
     child->is_session_leader = 0;
+    child->ctty = parent->ctty;
 
     child->thread_count = 1;
     child->threads = kmalloc(sizeof(tcb_t *));
