@@ -56,6 +56,7 @@
 #define SYS_getpgid   48
 #define SYS_setsid    49
 #define SYS_getsid    50
+#define SYS_settls    51
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -110,5 +111,6 @@ int64_t sys_setpgid(int pid, int pgid);
 int64_t sys_getpgid(int pid);
 int64_t sys_setsid(void);
 int64_t sys_getsid(int pid);
+int sys_settls(void __user *tlsptr);
 
 #endif // SYSCALL_H

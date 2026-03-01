@@ -868,6 +868,22 @@ int64_t sys_getsid(int pid) {
     return target->sid;
 }
 
+int sys_settls(void __user *tlsptr) {
+    tcb_t *thread = get_current_tcb();
+    if (!thread) {
+        return -ESRCH;
+    }
+
+    // Update the thread's TLS base pointer
+    thread->tls.base_virt = tlsptr;
+    thread->tls_ptr = (user_tls_t *)tlsptr;
+
+    // Set the FS_BASE MSR (0xC0000100) for this thread
+    _cpu_set_msr(0xC0000100, (uint64_t)tlsptr);
+
+    return 0;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
@@ -919,5 +935,6 @@ void* syscall_table[] = {
     (void*)sys_setpgid,
     (void*)sys_getpgid,
     (void*)sys_setsid,
-    (void*)sys_getsid
+    (void*)sys_getsid,
+    (void*)sys_settls
 };
