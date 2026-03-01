@@ -33,7 +33,7 @@ all: $(TARGET)
 	$(FASM) $< $@
 
 $(TARGET): $(OBJS)
-	ld.lld $(OBJS) $(LDFLAGS)
+	ld $(OBJS) $(LDFLAGS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
