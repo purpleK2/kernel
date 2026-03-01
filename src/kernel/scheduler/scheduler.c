@@ -27,6 +27,15 @@
 #include <fs/vfs/vfs.h>
 
 #include <util/assert.h>
+#include <uaccess.h>
+
+#define WNOHANG    1
+#define WUNTRACED  2
+#define WCONTINUED 8
+
+#define __W_EXITCODE(ret, sig) ((ret) << 8 | (sig))
+#define __WIFEXITED(status)    (((status) & 0x7f) == 0)
+#define __WEXITSTATUS(status)  (((status) >> 8) & 0xff)
 
 extern registers_t *get_syscall_context(void);
 
@@ -283,7 +292,17 @@ int proc_create(void (*entry)(), int flags, char *name) {
         }
     }
 
-    
+    pcb_t *parent_pcb = get_current_pcb();
+
+    if (proc->pid == 1 || !parent_pcb) {
+        proc->pgid = proc->pid;
+        proc->sid = proc->pid;
+        proc->is_session_leader = 1;
+    } else {
+        proc->pgid = parent_pcb->pgid;
+        proc->sid = parent_pcb->sid;
+        proc->is_session_leader = 0;
+    }
 
 #ifdef CONFIG_SCHED_DEBUG
     debugf_debug("Created process PID=%d flags=0x%x mode=%s\n", proc->pid,
@@ -508,6 +527,10 @@ int proc_fork(registers_t *regs) {
 
     child->signal_handler = parent->signal_handler;
 
+    child->pgid = parent->pgid;
+    child->sid = parent->sid;
+    child->is_session_leader = 0;
+
     child->thread_count = 1;
     child->threads = kmalloc(sizeof(tcb_t *));
     if (!child->threads) {
@@ -708,26 +731,76 @@ void proc_remove_child(pcb_t *parent, pcb_t *child) {
     }
 }
 
-static void wake_wait_queue(pcb_t *proc) {
-    if (!proc) return;
+static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
+    if (!parent || !child) return 0;
 
-    spinlock_acquire(&proc->wait_lock);
-    tcb_t *waiter = proc->wait_queue;
+    spinlock_acquire(&parent->wait_lock);
+    
+    tcb_t **prev_ptr = &parent->wait_queue;
+    tcb_t *waiter = parent->wait_queue;
+    
     while (waiter) {
-        tcb_t *next = waiter->wq_next;
-        waiter->state = THREAD_READY;
-        waiter->on_waitqueue = 0;
-        waiter->wq_next = NULL;
+        int match = 0;
         
-        spinlock_acquire(&SCHEDULER_LOCK);
-        int cpu = get_cpu();
-        mlfq_enqueue(cpu, waiter, waiter->priority);
-        spinlock_release(&SCHEDULER_LOCK);
+        if (waiter->wait_pid == -1) {
+            match = 1;
+        } else if (waiter->wait_pid == 0) {
+            match = (child->pgid == parent->pgid);
+        } else if (waiter->wait_pid > 0) {
+            match = (child->pid == waiter->wait_pid);
+        } else {
+            match = (child->pgid == -waiter->wait_pid);
+        }
         
-        waiter = next;
+        if (match) {
+            *prev_ptr = waiter->wq_next;
+            waiter->wq_next = NULL;
+            waiter->on_waitqueue = 0;
+            
+            int child_pid = child->pid;
+            int exit_status = __W_EXITCODE(child->exit_code, 0);
+            
+            waiter->wait_result = child_pid;
+            waiter->wait_status = exit_status;
+            
+            if (waiter->regs) {
+                waiter->regs->rax = child_pid;
+            }
+            
+            if (waiter->wait_status_ptr && parent->vmc) {
+                uint64_t *old_pml4 = get_kernel_pml4();
+                uint64_t pml4_phys = VIRT_TO_PHYSICAL((uint64_t)parent->vmc->pml4_table);
+                _load_pml4((uint64_t *)pml4_phys);
+                
+                copy_to_user(waiter->wait_status_ptr, &exit_status, sizeof(int));
+                
+                _load_pml4(old_pml4);
+            }
+            
+            spinlock_release(&parent->wait_lock);
+            proc_remove_child(parent, child);
+            
+            if (child->name) kfree(child->name);
+            if (child->cred) kfree(child->cred);
+            if (child->fd_table.entries) kfree(child->fd_table.entries);
+            if (child->children) kfree(child->children);
+            kfree(child);
+            
+            waiter->state = THREAD_READY;
+            spinlock_acquire(&SCHEDULER_LOCK);
+            int cpu = get_cpu();
+            mlfq_enqueue(cpu, waiter, waiter->priority);
+            spinlock_release(&SCHEDULER_LOCK);
+            
+            return 1;
+        }
+        
+        prev_ptr = &waiter->wq_next;
+        waiter = waiter->wq_next;
     }
-    proc->wait_queue = NULL;
-    spinlock_release(&proc->wait_lock);
+    
+    spinlock_release(&parent->wait_lock);
+    return 0;
 }
 
 static void add_to_wait_queue(pcb_t *parent, tcb_t *thread) {
@@ -741,15 +814,7 @@ static void add_to_wait_queue(pcb_t *parent, tcb_t *thread) {
     spinlock_release(&parent->wait_lock);
 }
 
-#define WNOHANG    1
-#define WUNTRACED  2
-#define WCONTINUED 8
-
-#define __W_EXITCODE(ret, sig) ((ret) << 8 | (sig))
-#define __WIFEXITED(status)    (((status) & 0x7f) == 0)
-#define __WEXITSTATUS(status)  (((status) >> 8) & 0xff)
-
-int do_waitpid(int pid, int *exit_code, int options) {
+int do_waitpid(int pid, int *status_ptr, int options) {
     pcb_t *current = get_current_pcb();
     if (!current) return -EFAULT;
 
@@ -757,58 +822,65 @@ int do_waitpid(int pid, int *exit_code, int options) {
         return -ECHILD;
     }
 
-    while (1) {
-        for (int i = 0; i < current->children_count; i++) {
-            pcb_t *child = current->children[i];
-            if (!child) continue;
+    for (int i = 0; i < current->children_count; i++) {
+        pcb_t *child = current->children[i];
+        if (!child) continue;
 
-            if (pid > 0 && child->pid != pid) continue;
+        if (pid > 0 && child->pid != pid) continue;
+        if (pid == 0 && child->pgid != current->pgid) continue;
+        if (pid < -1 && child->pgid != -pid) continue;
 
-            if (child->exited) {
-                int child_pid = child->pid;
-                if (exit_code) {
-                    *exit_code = __W_EXITCODE(child->exit_code, 0);
-                }
-
-                proc_remove_child(current, child);
-
-                if (child->name) kfree(child->name);
-                if (child->cred) kfree(child->cred);
-                if (child->fd_table.entries) kfree(child->fd_table.entries);
-                if (child->children) kfree(child->children);
-                kfree(child);
-
-                return child_pid;
+        if (child->exited) {
+            int child_pid = child->pid;
+            int exit_status = __W_EXITCODE(child->exit_code, 0);
+            
+            if (status_ptr) {
+                copy_to_user(status_ptr, &exit_status, sizeof(int));
             }
+
+            proc_remove_child(current, child);
+
+            if (child->name) kfree(child->name);
+            if (child->cred) kfree(child->cred);
+            if (child->fd_table.entries) kfree(child->fd_table.entries);
+            if (child->children) kfree(child->children);
+            kfree(child);
+
+            return child_pid;
         }
-
-        if (options & WNOHANG) {
-            return 0;
-        }
-
-        if (pid > 0) {
-            int found = 0;
-            for (int i = 0; i < current->children_count; i++) {
-                if (current->children[i] && current->children[i]->pid == pid) {
-                    found = 1;
-                    break;
-                }
-            }
-            if (!found) return -ECHILD;
-        }
-
-        tcb_t *me = get_current_tcb();
-        if (!me) return -EFAULT;
-
-        registers_t *ctx = get_syscall_context();
-        if (!ctx) return -EFAULT;
-
-        me->regs = ctx;
-
-        add_to_wait_queue(current, me);
-        
-        yield(ctx);
     }
+
+    if (options & WNOHANG) {
+        return 0;
+    }
+
+    if (pid > 0) {
+        int found = 0;
+        for (int i = 0; i < current->children_count; i++) {
+            if (current->children[i] && current->children[i]->pid == pid) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) return -ECHILD;
+    }
+
+    tcb_t *me = get_current_tcb();
+    if (!me) return -EFAULT;
+
+    registers_t *ctx = get_syscall_context();
+    if (!ctx) return -EFAULT;
+
+    me->wait_pid = pid;
+    me->wait_status_ptr = status_ptr;
+    me->wait_result = 0;
+    me->wait_status = 0;
+    me->regs = ctx;
+
+    add_to_wait_queue(current, me);
+
+    yield(ctx);
+    __builtin_unreachable();
 }
 
 int allocate_tls(tcb_t *thread, size_t requested_size) {
@@ -1122,6 +1194,14 @@ int proc_exit(int exit_code) {
     proc->exit_code = exit_code;
     proc->exited = 1;
 
+    proc->state = PROC_DEAD;
+    for (int i = 0; i < proc->thread_count; i++) {
+        if (proc->threads[i]) {
+            proc->threads[i]->state = THREAD_DEAD;
+        }
+    }
+    procfs_remove_process(proc);
+
     pcb_t *init_proc = pcb_lookup(1);
     if (init_proc && proc->children_count > 0) {
         for (int i = 0; i < proc->children_count; i++) {
@@ -1137,12 +1217,10 @@ int proc_exit(int exit_code) {
     }
 
     if (proc->parent) {
-        wake_wait_queue(proc->parent);
+        wake_waiter_for_child(proc->parent, proc);
     }
 
-    int ret = pcb_destroy(pid);
-
-    return ret;
+    return EOK;
 }
 
 int scheduler_enqueue(tcb_t *thread) {

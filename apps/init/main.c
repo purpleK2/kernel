@@ -56,6 +56,11 @@ typedef unsigned int   uint32_t;
 #define SYS_WAITPID   43
 #define SYS_WAIT4     44
 #define SYS_GETPPID   45
+#define SYS_GETPGRP   46
+#define SYS_SETPGID   47
+#define SYS_GETPGID   48
+#define SYS_SETSID    49
+#define SYS_GETSID    50
 
 /* waitpid options */
 #define WNOHANG    1
@@ -224,7 +229,7 @@ static inline uint64_t syscall6(uint64_t num, uint64_t a1, uint64_t a2,
     return ret;
 }
 
-static const char filename[] = "/dev/console";
+static const char filename[] = "/dev/e9";
 
 __thread uint64_t thread_local_var = 67;
 
@@ -1969,6 +1974,55 @@ void main(uintptr_t *stack_ptr) {
         print(fd, "[parent] waitpid(-1) returned: ");
         print_int(fd, wait_ret2);
         print(fd, " (expected -10 = -ECHILD)\r\n");
+        
+        // Test process groups and sessions
+        print(fd, "\r\n=== Testing Process Groups and Sessions ===\r\n");
+        
+        // Get current process group
+        int64_t pgrp = (int64_t)syscall0(SYS_GETPGRP);
+        print(fd, "getpgrp() = ");
+        print_int(fd, pgrp);
+        print(fd, "\r\n");
+        
+        // Get session ID
+        int64_t sid = (int64_t)syscall1(SYS_GETSID, 0);
+        print(fd, "getsid(0) = ");
+        print_int(fd, sid);
+        print(fd, "\r\n");
+        
+        // Get process group of self
+        int64_t pgid = (int64_t)syscall1(SYS_GETPGID, 0);
+        print(fd, "getpgid(0) = ");
+        print_int(fd, pgid);
+        print(fd, "\r\n");
+        
+        // Test setpgid - create a new process group
+        print(fd, "Testing setpgid...\r\n");
+        int64_t setpgid_ret = (int64_t)syscall2(SYS_SETPGID, 0, 0);
+        print(fd, "setpgid(0, 0) = ");
+        print_int(fd, setpgid_ret);
+        if (setpgid_ret == -1) {
+            print(fd, " (expected -EPERM for session leader)");
+        }
+        print(fd, "\r\n");
+        
+        // Verify pgid unchanged if we're session leader
+        pgrp = (int64_t)syscall0(SYS_GETPGRP);
+        print(fd, "getpgrp() after setpgid = ");
+        print_int(fd, pgrp);
+        print(fd, "\r\n");
+        
+        // Test setsid (should fail because we're already a session leader)
+        print(fd, "Testing setsid...\r\n");
+        int64_t setsid_ret = (int64_t)syscall0(SYS_SETSID);
+        print(fd, "setsid() = ");
+        print_int(fd, setsid_ret);
+        if (setsid_ret < 0) {
+            print(fd, " (expected -EPERM for session leader)");
+        }
+        print(fd, "\r\n");
+        
+        print(fd, "=== Process Groups/Sessions Test Complete ===\r\n\r\n");
     }
     
     if (argc > 0) {

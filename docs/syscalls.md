@@ -55,6 +55,11 @@ System calls can be triggered using either the `syscall` instruction or with int
 #define SYS_waitpid 43
 #define SYS_wait4 44
 #define SYS_getppid 45
+#define SYS_getpgrp 46
+#define SYS_setpgid 47
+#define SYS_getpgid 48
+#define SYS_setsid 49
+#define SYS_getsid 50
 ```
 
 A complete table of all syscalls
@@ -96,3 +101,8 @@ A complete table of all syscalls
 | waitpid      | Waits for a child process to change state            | 43                    | pid_t or -1                      | pid_t pid      | int\* status   | int options   | /             | /           | /             |
 | wait4        | Waits for child with resource usage (rusage ignored) | 44                    | pid_t or -1                      | pid_t pid      | int\* status   | int options   | void\* rusage | /           | /             |
 | getppid      | Returns the parent process ID                        | 45                    | pid_t ppid                       | /              | /              | /             | /             | /           | /             |
+| getpgrp      | Returns process group ID of calling process          | 46                    | pid_t pgid                       | /              | /              | /             | /             | /           | /             |
+| setpgid      | Sets process group ID of a process                   | 47                    | int (0 or -1)                    | pid_t pid      | pid_t pgid     | /             | /             | /           | /             |
+| getpgid      | Returns process group ID of a process                | 48                    | pid_t pgid or -1                 | pid_t pid      | /              | /             | /             | /           | /             |
+| setsid       | Creates a new session                                | 49                    | pid_t sid or -1                  | /              | /              | /             | /             | /           | /             |
+| getsid       | Returns session ID of a process                      | 50                    | pid_t sid or -1                  | pid_t pid      | /              | /             | /             | /           | /             |

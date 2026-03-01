@@ -51,6 +51,11 @@
 #define SYS_waitpid   43
 #define SYS_wait4     44
 #define SYS_getppid   45
+#define SYS_getpgrp   46
+#define SYS_setpgid   47
+#define SYS_getpgid   48
+#define SYS_setsid    49
+#define SYS_getsid    50
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -97,8 +102,13 @@ int sys_mprotect(void __user *addr, size_t length, int prot);
 int sys_msync(void __user *addr, size_t length, int flags);
 int sys_pipe(int *user_fds);
 int sys_nanosleep(const void __user *req, void __user *rem);
-int sys_waitpid(int pid, int __user *status, int options);
-int sys_wait4(int pid, int __user *status, int options, void __user *rusage);
-int sys_getppid(void);
+int64_t sys_waitpid(int pid, int __user *status, int options);
+int64_t sys_wait4(int pid, int __user *status, int options, void __user *rusage);
+int64_t sys_getppid(void);
+int64_t sys_getpgrp(void);
+int64_t sys_setpgid(int pid, int pgid);
+int64_t sys_getpgid(int pid);
+int64_t sys_setsid(void);
+int64_t sys_getsid(int pid);
 
 #endif // SYSCALL_H

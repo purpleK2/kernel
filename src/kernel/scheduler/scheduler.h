@@ -99,6 +99,11 @@ typedef struct thread {
     struct thread *wq_next;
     int            on_waitqueue;
 
+    int wait_pid;
+    int *wait_status_ptr;
+    int wait_result;
+    int wait_status;
+
     tls_region_t tls;
     user_tls_t *tls_ptr;
 } tcb_t;
@@ -135,6 +140,10 @@ typedef struct process {
     int exited;
     atomic_flag wait_lock;
     tcb_t *wait_queue;
+
+    int pgid;
+    int sid;
+    int is_session_leader;
 } pcb_t;
 
 typedef struct cpu_thread_queue {
@@ -203,7 +212,7 @@ void scheduler_procfs_print();
 tcb_t *tcb_lookup(int pid, int tid);
 pcb_t *pcb_lookup(int pid);
 
-int do_waitpid(int pid, int *exit_code, int options);
+int do_waitpid(int pid, int *status_ptr, int options);
 void proc_add_child(pcb_t *parent, pcb_t *child);
 void proc_remove_child(pcb_t *parent, pcb_t *child);
 
