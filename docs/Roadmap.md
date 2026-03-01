@@ -10,6 +10,12 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
 
 ## 2nd Milestone
 
+- [ ] Port mlibc
+  - [ ] Basic sysdeps
+  - [ ] Write smth with it
+  - [ ] Dynamic Linking
+  - [ ] Merge into upstream mlibc repo
+
 - More filesystem stuff
   - [ ] ISO9660
 - Hard drive setup:
