@@ -48,6 +48,9 @@
 #define SYS_pipe      40
 #define SYS_nanosleep 41
 #define SYS_execve    42
+#define SYS_waitpid   43
+#define SYS_wait4     44
+#define SYS_getppid   45
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -94,5 +97,8 @@ int sys_mprotect(void __user *addr, size_t length, int prot);
 int sys_msync(void __user *addr, size_t length, int flags);
 int sys_pipe(int *user_fds);
 int sys_nanosleep(const void __user *req, void __user *rem);
+int sys_waitpid(int pid, int __user *status, int options);
+int sys_wait4(int pid, int __user *status, int options, void __user *rusage);
+int sys_getppid(void);
 
 #endif // SYSCALL_H

@@ -130,6 +130,11 @@ typedef struct process {
     user_cred_t *cred;
 
     void (*signal_handler)(int);
+
+    int exit_code;
+    int exited;
+    atomic_flag wait_lock;
+    tcb_t *wait_queue;
 } pcb_t;
 
 typedef struct cpu_thread_queue {
@@ -197,6 +202,10 @@ void scheduler_procfs_print();
 
 tcb_t *tcb_lookup(int pid, int tid);
 pcb_t *pcb_lookup(int pid);
+
+int do_waitpid(int pid, int *exit_code, int options);
+void proc_add_child(pcb_t *parent, pcb_t *child);
+void proc_remove_child(pcb_t *parent, pcb_t *child);
 
 int scheduler_enqueue(tcb_t *thread);
 

@@ -28,6 +28,8 @@
 
 #include <util/assert.h>
 
+extern registers_t *get_syscall_context(void);
+
 cpu_local_t *cpu_locals;
 
 typedef struct mlfq_queue {
@@ -632,6 +634,13 @@ int proc_fork(registers_t *regs) {
     child->main_thread = child_thread;
     child->threads[0]  = child_thread;
 
+    child->exit_code = 0;
+    child->exited = 0;
+    child->wait_lock = (atomic_flag)ATOMIC_FLAG_INIT;
+    child->wait_queue = NULL;
+
+    proc_add_child(parent, child);
+
     procfs_add_process(child);
 
     spinlock_acquire(&SCHEDULER_LOCK);
@@ -666,6 +675,140 @@ int proc_engage(pcb_t *proc) {
     spinlock_release(&SCHEDULER_LOCK);
 
     return EOK;
+}
+
+void proc_add_child(pcb_t *parent, pcb_t *child) {
+    if (!parent || !child) return;
+
+    parent->children = krealloc(parent->children,
+        sizeof(pcb_t *) * (parent->children_count + 1));
+    parent->children[parent->children_count] = child;
+    parent->children_count++;
+    child->parent = parent;
+}
+
+void proc_remove_child(pcb_t *parent, pcb_t *child) {
+    if (!parent || !child) return;
+
+    for (int i = 0; i < parent->children_count; i++) {
+        if (parent->children[i] == child) {
+            for (int j = i; j < parent->children_count - 1; j++) {
+                parent->children[j] = parent->children[j + 1];
+            }
+            parent->children_count--;
+            if (parent->children_count == 0) {
+                kfree(parent->children);
+                parent->children = NULL;
+            } else {
+                parent->children = krealloc(parent->children,
+                    sizeof(pcb_t *) * parent->children_count);
+            }
+            return;
+        }
+    }
+}
+
+static void wake_wait_queue(pcb_t *proc) {
+    if (!proc) return;
+
+    spinlock_acquire(&proc->wait_lock);
+    tcb_t *waiter = proc->wait_queue;
+    while (waiter) {
+        tcb_t *next = waiter->wq_next;
+        waiter->state = THREAD_READY;
+        waiter->on_waitqueue = 0;
+        waiter->wq_next = NULL;
+        
+        spinlock_acquire(&SCHEDULER_LOCK);
+        int cpu = get_cpu();
+        mlfq_enqueue(cpu, waiter, waiter->priority);
+        spinlock_release(&SCHEDULER_LOCK);
+        
+        waiter = next;
+    }
+    proc->wait_queue = NULL;
+    spinlock_release(&proc->wait_lock);
+}
+
+static void add_to_wait_queue(pcb_t *parent, tcb_t *thread) {
+    if (!parent || !thread) return;
+
+    spinlock_acquire(&parent->wait_lock);
+    thread->wq_next = parent->wait_queue;
+    thread->on_waitqueue = 1;
+    thread->state = THREAD_WAITING;
+    parent->wait_queue = thread;
+    spinlock_release(&parent->wait_lock);
+}
+
+#define WNOHANG    1
+#define WUNTRACED  2
+#define WCONTINUED 8
+
+#define __W_EXITCODE(ret, sig) ((ret) << 8 | (sig))
+#define __WIFEXITED(status)    (((status) & 0x7f) == 0)
+#define __WEXITSTATUS(status)  (((status) >> 8) & 0xff)
+
+int do_waitpid(int pid, int *exit_code, int options) {
+    pcb_t *current = get_current_pcb();
+    if (!current) return -EFAULT;
+
+    if (current->children_count == 0) {
+        return -ECHILD;
+    }
+
+    while (1) {
+        for (int i = 0; i < current->children_count; i++) {
+            pcb_t *child = current->children[i];
+            if (!child) continue;
+
+            if (pid > 0 && child->pid != pid) continue;
+
+            if (child->exited) {
+                int child_pid = child->pid;
+                if (exit_code) {
+                    *exit_code = __W_EXITCODE(child->exit_code, 0);
+                }
+
+                proc_remove_child(current, child);
+
+                if (child->name) kfree(child->name);
+                if (child->cred) kfree(child->cred);
+                if (child->fd_table.entries) kfree(child->fd_table.entries);
+                if (child->children) kfree(child->children);
+                kfree(child);
+
+                return child_pid;
+            }
+        }
+
+        if (options & WNOHANG) {
+            return 0;
+        }
+
+        if (pid > 0) {
+            int found = 0;
+            for (int i = 0; i < current->children_count; i++) {
+                if (current->children[i] && current->children[i]->pid == pid) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) return -ECHILD;
+        }
+
+        tcb_t *me = get_current_tcb();
+        if (!me) return -EFAULT;
+
+        registers_t *ctx = get_syscall_context();
+        if (!ctx) return -EFAULT;
+
+        me->regs = ctx;
+
+        add_to_wait_queue(current, me);
+        
+        yield(ctx);
+    }
 }
 
 int allocate_tls(tcb_t *thread, size_t requested_size) {
@@ -964,8 +1107,9 @@ int proc_exit(int exit_code) {
         return EFAULT;
     }
 
-    int pid = current->parent->pid;
-    char *name = current->parent->name;
+    pcb_t *proc = current->parent;
+    int pid = proc->pid;
+    char *name = proc->name;
 
     if (pid == 1) {
         kpanic("Init process was killed!");
@@ -974,6 +1118,27 @@ int proc_exit(int exit_code) {
     
     debugf_debug("Process %d (%s) exited with code %d\n", pid,
            name ? name : "no-name", exit_code);
+
+    proc->exit_code = exit_code;
+    proc->exited = 1;
+
+    pcb_t *init_proc = pcb_lookup(1);
+    if (init_proc && proc->children_count > 0) {
+        for (int i = 0; i < proc->children_count; i++) {
+            pcb_t *child = proc->children[i];
+            if (child) {
+                child->parent = init_proc;
+                proc_add_child(init_proc, child);
+            }
+        }
+        proc->children_count = 0;
+        kfree(proc->children);
+        proc->children = NULL;
+    }
+
+    if (proc->parent) {
+        wake_wait_queue(proc->parent);
+    }
 
     int ret = pcb_destroy(pid);
 

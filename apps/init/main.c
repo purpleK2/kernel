@@ -53,6 +53,18 @@ typedef unsigned int   uint32_t;
 #define SYS_PIPE      40
 #define SYS_NANOSLEEP 41
 #define SYS_EXECVE    42
+#define SYS_WAITPID   43
+#define SYS_WAIT4     44
+#define SYS_GETPPID   45
+
+/* waitpid options */
+#define WNOHANG    1
+#define WUNTRACED  2
+#define WCONTINUED 8
+
+/* wait status macros */
+#define WIFEXITED(status)   (((status) & 0x7f) == 0)
+#define WEXITSTATUS(status) (((status) >> 8) & 0xff)
 
 /* mmap protection flags */
 #define PROT_NONE   0x0
@@ -1888,7 +1900,13 @@ void main(uintptr_t *stack_ptr) {
         print(fd, "\r\n");
     }
 
-    print(fd, "\r\nTesting fork()...\r\n");
+    print(fd, "\r\nTesting fork() and waitpid()...\r\n");
+    
+    uint64_t my_ppid = syscall0(SYS_GETPPID);
+    print(fd, "[init] My parent PID (getppid): ");
+    print_dec(fd, my_ppid);
+    print(fd, "\r\n");
+    
     uint64_t fork_ret = syscall0(SYS_FORK);
 
     print(fd, "\r\nFork returned: ");
@@ -1900,12 +1918,15 @@ void main(uintptr_t *stack_ptr) {
         uint64_t cpid = syscall0(SYS_GETPID);
         print_dec(fd, cpid);
         print(fd, "\r\n");
+        
+        uint64_t parent_pid = syscall0(SYS_GETPPID);
+        print(fd, "[child] Parent PID (getppid): ");
+        print_dec(fd, parent_pid);
+        print(fd, "\r\n");
 
-        char* test_argv[] = { "/bin/test.elf", "test_arg1", 0 };
-
-        syscall3(SYS_EXECVE, (uint64_t)"/bin/test.elf", (uint64_t)test_argv, (uint64_t)envp);
-
-        syscall1(SYS_EXIT, 0);
+        // Exit with a specific code to test waitpid
+        print(fd, "[child] Exiting with code 42...\r\n");
+        syscall1(SYS_EXIT, 42);
         return;
     } else {
         print(fd, "[parent] fork() returned child PID=");
@@ -1914,6 +1935,40 @@ void main(uintptr_t *stack_ptr) {
         uint64_t ppid = syscall0(SYS_GETPID);
         print_dec(fd, ppid);
         print(fd, "\r\n");
+        
+        // Wait for the child
+        print(fd, "[parent] Calling waitpid() for child...\r\n");
+        int status = 0;
+        int64_t wait_ret = (int64_t)syscall3(SYS_WAITPID, fork_ret, (uint64_t)&status, 0);
+        
+        print(fd, "[parent] waitpid returned: ");
+        print_int(fd, wait_ret);
+        print(fd, "\r\n");
+        
+        if (wait_ret > 0) {
+            print(fd, "[parent] Child status: ");
+            print_hex(fd, (uint64_t)status);
+            print(fd, "\r\n");
+            
+            if (WIFEXITED(status)) {
+                print(fd, "[parent] Child exited normally with code: ");
+                print_dec(fd, WEXITSTATUS(status));
+                print(fd, "\r\n");
+            }
+        } else if (wait_ret == 0) {
+            print(fd, "[parent] No child has exited (WNOHANG)\r\n");
+        } else {
+            print(fd, "[parent] waitpid failed with error: ");
+            print_int(fd, wait_ret);
+            print(fd, "\r\n");
+        }
+        
+        // Test waitpid with no children (should return -ECHILD)
+        print(fd, "[parent] Testing waitpid with no children...\r\n");
+        int64_t wait_ret2 = (int64_t)syscall3(SYS_WAITPID, -1, (uint64_t)&status, 0);
+        print(fd, "[parent] waitpid(-1) returned: ");
+        print_int(fd, wait_ret2);
+        print(fd, " (expected -10 = -ECHILD)\r\n");
     }
     
     if (argc > 0) {

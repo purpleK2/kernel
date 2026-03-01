@@ -749,6 +749,34 @@ int sys_nanosleep(const void __user *req, void __user *rem) {
     return ret;
 }
 
+int sys_waitpid(int pid, int __user *status, int options) {
+    int exit_code = 0;
+    int ret = do_waitpid(pid, &exit_code, options);
+    
+    if (ret > 0 && status) {
+        if (copy_to_user(status, &exit_code, sizeof(int)) != 0)
+            return -EFAULT;
+    }
+    
+    return ret;
+}
+
+int sys_wait4(int pid, int __user *status, int options, void __user *rusage) {
+    (void)rusage;
+    return sys_waitpid(pid, status, options);
+}
+
+int sys_getppid(void) {
+    pcb_t *current = get_current_pcb();
+    if (!current) {
+        return -1;
+    }
+    if (!current->parent) {
+        return 0;
+    }
+    return current->parent->pid;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
@@ -792,5 +820,8 @@ void* syscall_table[] = {
     (void*)sys_msync,
     (void*)sys_pipe,
     (void*)sys_nanosleep,
-    (void*)sys_execve
+    (void*)sys_execve,
+    (void*)sys_waitpid,
+    (void*)sys_wait4,
+    (void*)sys_getppid
 };
