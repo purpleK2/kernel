@@ -3,10 +3,10 @@ name: Build Kernel
 on:
   push:
     branches:
-      - '**'  # Runs on every commit on all branches
+      - "**" # Runs on every commit on all branches
   schedule:
-    - cron: '0 23 * * *'  # Runs at 23:00 UTC (which is 00:00 UTC+1)
-  workflow_dispatch:  # Allows manual triggering
+    - cron: "0 23 * * *" # Runs at 23:00 UTC (which is 00:00 UTC+1)
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   build:
@@ -15,9 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-            fetch-depth: 0  # Fetch all history for all branches and tags
-            submodules: recursive  # Fetch all submodules recursively
-      
+          fetch-depth: 0 # Fetch all history for all branches and tags
+          submodules: recursive # Fetch all submodules recursively
+
       - name: Install dependencies
         run: |
           sudo apt update
@@ -27,15 +27,15 @@ jobs:
         run: |
           pip install kconfiglib
           make defconfig_release
-      
+
       - name: Install kernel dependencies
         run: |
-            chmod +x ./libs/get_deps.sh
-            ./libs/get_deps.sh src/kernel libs
-            make -C libs/limine
-        
+          chmod +x ./libs/get_deps.sh
+          ./libs/get_deps.sh src/kernel libs
+          make -C libs/limine
+
       - name: Build kernel
-        run: make -j$(nproc) KCC=gcc KLD=ld all all-hdd
+        run: make -j$(nproc) KCC=clang KLD=ld.lld all all-hdd
 
       - name: Upload kernel-v0.iso as artifact
         uses: actions/upload-artifact@v4
@@ -48,4 +48,3 @@ jobs:
         with:
           name: kernel-v0.hdd
           path: kernel-v0.hdd
-
