@@ -3,6 +3,7 @@
 #include "errors.h"
 #include "ipc/pipe.h"
 #include "paging/paging.h"
+#include "scheduler/execve.h"
 #include "user/user.h"
 #include "uaccess.h"
 
@@ -790,5 +791,6 @@ void* syscall_table[] = {
     (void*)sys_mprotect,
     (void*)sys_msync,
     (void*)sys_pipe,
-    (void*)sys_nanosleep
+    (void*)sys_nanosleep,
+    (void*)sys_execve
 };

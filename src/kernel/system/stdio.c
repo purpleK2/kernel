@@ -92,8 +92,12 @@ void mputc(int c, void *ctx) {
     dputc(c, ctx);
 }
 
+extern bool kernel_console_active;
+
 void bsod_init() {
-    set_screen_bg_fg(PANIC_BG, DEFAULT_FG);
+    set_screen_bg_fg(DEFAULT_BG, PANIC_BG);
+
+    kernel_console_active = true;
 
     clearscreen();
 }

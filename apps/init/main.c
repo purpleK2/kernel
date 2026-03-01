@@ -52,6 +52,7 @@ typedef unsigned int   uint32_t;
 #define SYS_MSYNC     39
 #define SYS_PIPE      40
 #define SYS_NANOSLEEP 41
+#define SYS_EXECVE    42
 
 /* mmap protection flags */
 #define PROT_NONE   0x0
@@ -1899,6 +1900,11 @@ void main(uintptr_t *stack_ptr) {
         uint64_t cpid = syscall0(SYS_GETPID);
         print_dec(fd, cpid);
         print(fd, "\r\n");
+
+        char* test_argv[] = { "/bin/test.elf", "test_arg1", 0 };
+
+        syscall3(SYS_EXECVE, (uint64_t)"/bin/test.elf", (uint64_t)test_argv, (uint64_t)envp);
+
         syscall1(SYS_EXIT, 0);
         return;
     } else {

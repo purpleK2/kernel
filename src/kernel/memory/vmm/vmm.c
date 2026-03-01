@@ -570,6 +570,30 @@ vmc_t *vmc_fork(vmc_t *parent) {
                         child_pt[pt_idx]  = cow_entry;
                         pmm_page_ref_inc((void *)phys);
 
+                        if (!(parent_pt[pt_idx] & PMLE_USER)) {
+                            child_pt[pt_idx] = entry; // non-user pages are shared read-only
+                            continue;
+                        }
+
+                        if (virt == 0x15000) {
+                            debugf_debug("how");
+                            child_pt[pt_idx] = entry;
+                            continue;
+                        }
+
+                        bool in_kernel_vmc = false;
+                        for (vmo_t *v = kernel_vmc->root_vmo; v != NULL; v = v->next) {
+                            if (vmo_overlaps(v, virt, 1)) {
+                                in_kernel_vmc = true;
+                                break;
+                            }
+                        }
+
+                        if (in_kernel_vmc) {
+                            child_pt[pt_idx] = entry;
+                            continue;
+                        }
+
                         _invalidate(virt);
                         if (get_bootloader_data()->smp_enabled) {
                             tlb_shootdown(virt);

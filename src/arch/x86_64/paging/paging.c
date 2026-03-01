@@ -193,6 +193,57 @@ void jump_to(void *addr)
     __builtin_unreachable();
 }
 
+static void dump_page_walk(uint64_t *pml4_phys, uint64_t virt)
+{
+    uint64_t *pml4 = (uint64_t *)PHYS_TO_VIRTUAL((uint64_t)pml4_phys);
+
+    uint64_t pml4_i = PML4_INDEX(virt);
+    uint64_t pdp_i  = PDP_INDEX(virt);
+    uint64_t pdir_i = PDIR_INDEX(virt);
+    uint64_t ptab_i = PTAB_INDEX(virt);
+
+    debugf("---- PAGE WALK FOR %016llx ----\n", virt);
+
+    uint64_t pml4e = pml4[pml4_i];
+    debugf("PML4[%3llu] = %016llx\n", pml4_i, pml4e);
+
+    if (!(pml4e & PMLE_PRESENT)) {
+        debugf(" -> not present at PML4\n");
+        return;
+    }
+
+    uint64_t *pdp = (uint64_t *)PHYS_TO_VIRTUAL(PG_GET_ADDR(pml4e));
+    uint64_t pdpe = pdp[pdp_i];
+    debugf("PDP [%3llu] = %016llx\n", pdp_i, pdpe);
+
+    if (!(pdpe & PMLE_PRESENT)) {
+        debugf(" -> not present at PDP\n");
+        return;
+    }
+
+    uint64_t *pdir = (uint64_t *)PHYS_TO_VIRTUAL(PG_GET_ADDR(pdpe));
+    uint64_t pde = pdir[pdir_i];
+    debugf("PD  [%3llu] = %016llx\n", pdir_i, pde);
+
+    if (!(pde & PMLE_PRESENT)) {
+        debugf(" -> not present at PD\n");
+        return;
+    }
+
+    uint64_t *pt = (uint64_t *)PHYS_TO_VIRTUAL(PG_GET_ADDR(pde));
+    uint64_t pte = pt[ptab_i];
+    debugf("PT  [%3llu] = %016llx\n", ptab_i, pte);
+
+    if (!(pte & PMLE_PRESENT)) {
+        debugf(" -> not present at PT\n");
+        return;
+    }
+
+    debugf("FINAL PHYS = %016llx\n", PG_GET_ADDR(pte));
+
+    debugf("--------------------------------\n");
+}
+
 void pf_handler(registers_t *ctx) {
     uint64_t pf_error_code = (uint64_t)ctx->error;
     uint64_t cr2 = cpu_get_cr(2);
@@ -270,20 +321,7 @@ void pf_handler(registers_t *ctx) {
     }
 
     if (is_in_proc(ctx) || PG_IF(pf_error_code)) {
-        debugf_debug(
-    "PF debug: pid=%d rip=%.16llx cr2=%.16llx rax=%.16llx fsbase=%.16llx\n",
-    get_current_pcb()->pid,
-    ctx->rip,
-    cr2,
-    ctx->rax,
-    _cpu_get_msr(0xC0000100)
-);
-        debugf_debug(
-            "Killing process %d, because of a page fault from the %d (1 is user, 0 is kernel).ss=%x, cs=%x rip: %.16llx, fault_addr: %.16llx, instr_fetch: %s\n",
-            PG_RING(pf_error_code), get_current_pcb()->pid, ctx->ss, ctx->cs,
-            ctx->rip, cr2,
-            PG_IF(pf_error_code) == 1 ? "yes" : "no");
-
+        // todo signals
         proc_exit(ENOMEM);
         yield(ctx);
         return;
@@ -312,14 +350,16 @@ void pf_handler(registers_t *ctx) {
         break;
     }
 
-    // CR2 contains the address that caused the fault
     mprintf("\nAttempt to access address %llx\n\n", cr2);
 
     mprintf("RESERVED WRITE: %d\n", PG_RESERVED(pf_error_code));
     mprintf("INSTRUCTION_FETCH: %d\n", PG_IF(pf_error_code));
     mprintf("PROTECTION_KEY_VIOLATION: %d\n", PG_PK(pf_error_code));
     mprintf("SHADOW_STACK_ACCESS: %d\n", PG_SS(pf_error_code));
-    mprintf("SGX_VIOLATION: %d\n", PG_SGX(pf_error_code));
+    mprintf("SGX_VIOLATION: %d\n\n", PG_SGX(pf_error_code));
+
+    uint64_t *active_pml4 = (uint64_t *)cpu_get_cr(3);
+    dump_page_walk(active_pml4, cr2);
 
     panic_common(ctx);
 
@@ -520,7 +560,7 @@ uint64_t vmo_to_page_flags(uint64_t vmo_flags) {
         pg_flags |= PMLE_PRESENT;
     if (vmo_flags & VMO_RW)
         pg_flags |= PMLE_WRITE;
-    if (vmo_flags & VMO_USER)
+    if (vmo_flags & VMO_USR)
         pg_flags |= PMLE_USER;
     if (vmo_flags & VMO_NX)
         pg_flags |= PMLE_NOT_EXECUTABLE;
@@ -536,7 +576,7 @@ uint64_t page_to_vmo_flags(uint64_t pg_flags) {
     if (pg_flags & PMLE_WRITE)
         vmo_flags |= VMO_RW;
     if (pg_flags & PMLE_USER)
-        vmo_flags |= VMO_USER;
+        vmo_flags |= VMO_USR;
 
     return vmo_flags;
 }
@@ -603,7 +643,7 @@ void paging_init(uint64_t *kernel_pml4) {
         ROUND_UP(a_kernel_text_end - a_kernel_text_start, PFRAME_SIZE);
     map_region(kernel_pml4, a_kernel_text_start - VIRT_BASE + PHYS_BASE,
                a_kernel_text_start, (kernel_text_len / PFRAME_SIZE),
-               PMLE_KERNEL_READ_WRITE);
+               PMLE_KERNEL_READ);
 
     uint64_t a_kernel_rodata_start = (uint64_t)&__kernel_rodata_start;
     uint64_t a_kernel_rodata_end   = (uint64_t)&__kernel_rodata_end;
@@ -656,7 +696,7 @@ void paging_init(uint64_t *kernel_pml4) {
 
         map_region(kernel_pml4, memmap_entry->base,
                    PHYS_TO_VIRTUAL(memmap_entry->base),
-                   (memmap_entry->length / PFRAME_SIZE), PMLE_USER_READ_WRITE);
+                   (memmap_entry->length / PFRAME_SIZE), PMLE_KERNEL_READ_WRITE);
     }
 
     debugf_debug("Our PML4 sits at %llp\n", kernel_pml4);

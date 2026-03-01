@@ -87,6 +87,9 @@ typedef struct thread {
     void *kernel_stack;
     void *user_stack;
 
+    // Deferred kernel stack to free (set by execve, freed by yield)
+    void *deferred_free_kstack;
+
     atomic_flag lock;
 
     struct thread *next;

@@ -11,7 +11,7 @@
 vt_t *vts[MAX_VTS];
 int active_vt = 0;
 
-static bool kernel_console_active = true;
+bool kernel_console_active = true;
 
 static const uint32_t ansi_colors[16] = {
     0x000000,

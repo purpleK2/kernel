@@ -1,10 +1,8 @@
 #include "scheduler.h"
-#include "interrupts/isr.h"
 #include "karg.h"
 #include "loader/binfmt.h"
 #include "user/group.h"
 #include "user/user.h"
-#include "util/dump.h"
 
 #include <gdt/gdt.h>
 
@@ -727,11 +725,6 @@ int allocate_tls(tcb_t *thread, size_t requested_size) {
     thread->tls.pages     = pages;
     thread->tls_ptr       = tcb;
 
-    debugf_debug(
-        "Allocated TLS for TID=%d: fs_base=%p region_virt=%p phys=%p size=%zu pages=%zu\n",
-        thread->tid, (void *)fs_base_virt, (void *)region_virt, (void *)region_phys,
-        total_size, pages);
-
     return EOK;
 }
 
@@ -1003,6 +996,11 @@ void yield(registers_t *ctx) {
     tcb_t *current = current_threads[cpu];
     tcb_t *next;
     _load_pml4(get_kernel_pml4());
+
+    if (current && current->deferred_free_kstack) {
+        pmm_free((void*)VIRT_TO_PHYSICAL(current->deferred_free_kstack), SCHEDULER_STACK_PAGES);
+        current->deferred_free_kstack = NULL;
+    }
 
     thread_queues[cpu].ticks_since_boost++;
     if (thread_queues[cpu].ticks_since_boost >= CONFIG_SCHED_MLFQ_BOOST_INTERVAL) {
