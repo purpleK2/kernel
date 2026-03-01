@@ -575,12 +575,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
                             continue;
                         }
 
-                        if (virt == 0x15000) {
-                            debugf_debug("how");
-                            child_pt[pt_idx] = entry;
-                            continue;
-                        }
-
                         bool in_kernel_vmc = false;
                         for (vmo_t *v = kernel_vmc->root_vmo; v != NULL; v = v->next) {
                             if (vmo_overlaps(v, virt, 1)) {

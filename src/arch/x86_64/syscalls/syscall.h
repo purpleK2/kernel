@@ -47,6 +47,7 @@
 #define SYS_msync     39
 #define SYS_pipe      40
 #define SYS_nanosleep 41
+#define SYS_execve    42
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
