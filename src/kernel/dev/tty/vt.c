@@ -371,9 +371,6 @@ void vt_create_console(void) {
     debugf_debug("Created console\n");
 }
 
-// /dev/tty - controlling terminal device
-// Routes to the current process's controlling terminal
-
 static int ctty_read(struct device *dev, void *buffer, size_t size, size_t offset) {
     (void)dev;
     (void)offset;
