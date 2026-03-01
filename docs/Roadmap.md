@@ -13,21 +13,19 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
 - More filesystem stuff
   - [ ] ISO9660
 - Hard drive setup:
-
   - [ ] FAT32 (boot partition)
   - [ ] EXTx (system partition)
 
-- [ ] Syscalls
-- [ ] ELF loading
+- [x] Syscalls
+- [x] ELF loading
 - [ ] OS-specific toolchain
-- [ ] UNIX/POSIX compatibility layer
+- [x] UNIX/POSIX compatibility layer
       (if someone wants to port `coreutils`, `bash`, whatever)
 
 - [ ] Basic shell
-
   - [ ] Configuration System (registry)
   - [ ] Enviroment Variables
-  - [ ] Input and Ouput syscalls
+  - [x] Input and Ouput syscalls
 
 - [ ] Video modes
   - [ ] Set better screen resolutions other than limine's default
@@ -48,13 +46,11 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
   - [x] Initialization
   - [x] PIT-supported sleep
 - LAPIC/IOAPIC Initialization
-
   - [x] IRQ redirection to I/O APIC
   - [x] Interrupts work
   - [x] LAPIC timer init
 
 - ACPI
-
   - uACPI implementation
     - [x] ACPI tables parsing
     - [x] the cool SSDT stuff
@@ -64,7 +60,6 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
   - [x] MCFG (PCIe devices parsing)
 
 - Memory
-
   - [x] Get memory map
   - [x] Memory management
     - PMM
@@ -77,15 +72,13 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
 - [x] Driver interface (this thing took a long time)
 
 - PCI/PCIe support
-
   - [x] PCI(e) devices parsing
-  - [ ] API for drivers
+  - [x] API for drivers
 
 - [x] AHCI driver
       (we can read from the disk 🔥)
 
 - File systems
-
   - ~~USTAR~~ CPIO
     - [x] Initial initrd creation
     - [x] File lookup
@@ -100,11 +93,11 @@ A build (`.iso` file) will be released every time a Milestone is completed. The 
     - [x] (Re)Design
     - [x] (Re)Implementation
   - ProcFS
-    - [X] Design
-    - [X] Implementation
+    - [x] Design
+    - [x] Implementation
 
-- [X] Scheduler
-  - [X] with threads and stuff
+- [x] Scheduler
+  - [x] with threads and stuff
 - [ ] SMP
 
-- [ ] Jump to userspace
+- [x] Jump to userspace
