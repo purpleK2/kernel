@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Setting up top0 network interface"
+echo "Setting up tap0 network interface"
 
 echo "Please enter sudo password for this process"
 sudo ip tuntap add dev tap0 mode tap user $(whoami)
