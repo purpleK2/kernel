@@ -874,11 +874,9 @@ int sys_settls(void __user *tlsptr) {
         return -ESRCH;
     }
 
-    // Update the thread's TLS base pointer
     thread->tls.base_virt = tlsptr;
     thread->tls_ptr = (user_tls_t *)tlsptr;
 
-    // Set the FS_BASE MSR (0xC0000100) for this thread
     _cpu_set_msr(0xC0000100, (uint64_t)tlsptr);
 
     return 0;

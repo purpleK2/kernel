@@ -106,3 +106,4 @@ A complete table of all syscalls
 | getpgid      | Returns process group ID of a process                | 48                    | pid_t pgid or -1                 | pid_t pid      | /              | /             | /             | /           | /             |
 | setsid       | Creates a new session                                | 49                    | pid_t sid or -1                  | /              | /              | /             | /             | /           | /             |
 | getsid       | Returns session ID of a process                      | 50                    | pid_t sid or -1                  | pid_t pid      | /              | /             | /             | /           | /             |
+| settls       | Sets the address of the thread local storage         | 51                    | int (0)                          | void\* tlsaddr | /              | /             | /             | /           | /             |
