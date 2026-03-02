@@ -19,9 +19,9 @@ extern bool pit;
 #define INFO_FG    0xa4a5a4
 #define SUCCESS_FG 0x00e826
 #define WARNING_FG 0xea7500
-#define PANIC_FG   0x66a3ff
 
-#define PANIC_BG 0x0104a0
+#define PANIC_FG   DEFAULT_FG
+#define PANIC_BG 0x6b0160
 
 uint32_t fb_get_bg();
 void fb_set_bg(uint32_t bg_rgb);

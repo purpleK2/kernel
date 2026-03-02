@@ -95,7 +95,7 @@ void mputc(int c, void *ctx) {
 extern bool kernel_console_active;
 
 void bsod_init() {
-    set_screen_bg_fg(DEFAULT_BG, PANIC_BG);
+    set_screen_bg_fg(PANIC_BG, PANIC_FG);
 
     kernel_console_active = true;
 
@@ -218,7 +218,7 @@ int kpanic(const char *cause, ...) {
         :
     );
 
-    set_screen_bg_fg(0x000000, PANIC_FG);
+    set_screen_bg_fg(PANIC_BG, PANIC_FG);
     debugf(ANSI_COLOR_BLUE);
 
     mprintf("Kernel panic @ 0x%.16llx: ", ((struct stackFrame *)rbp)->rip);
