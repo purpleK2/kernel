@@ -1,4 +1,5 @@
 #include "pipe.h"
+#include "poll.h"
 #include "errors.h"
 #include "fs/file_io.h"
 #include "memory/heap/kheap.h"
@@ -86,6 +87,7 @@ int pipe_read(fileio_t *fio, void *buf, size_t *size) {
     spinlock_release(&p->lock);
 
     *size = read_bytes;
+    poll_wake_all();
     return 0;
 }
 
@@ -118,6 +120,7 @@ int pipe_write(fileio_t *fio, const void *buf, size_t *size) {
     spinlock_release(&p->lock);
 
     *size = written;
+    poll_wake_all();
     return 0;
 }
 
@@ -132,6 +135,8 @@ int pipe_close(fileio_t *fio) {
 
     bool destroy = (p->readers == 0 && p->writers == 0);
     spinlock_release(&p->lock);
+
+    poll_wake_all();
 
     kfree(fio);
     if (destroy)

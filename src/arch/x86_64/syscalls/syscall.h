@@ -57,6 +57,7 @@
 #define SYS_setsid    49
 #define SYS_getsid    50
 #define SYS_settls    51
+#define SYS_poll      52
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -112,5 +113,6 @@ int64_t sys_getpgid(int pid);
 int64_t sys_setsid(void);
 int64_t sys_getsid(int pid);
 int sys_settls(void __user *tlsptr);
+int sys_poll(void __user *fds, size_t nfds, int timeout_ms);
 
 #endif // SYSCALL_H

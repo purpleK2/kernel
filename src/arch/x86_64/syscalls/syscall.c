@@ -2,6 +2,7 @@
 #include "cpu.h"
 #include "errors.h"
 #include "ipc/pipe.h"
+#include "ipc/poll.h"
 #include "paging/paging.h"
 #include "scheduler/execve.h"
 #include "user/user.h"
@@ -882,6 +883,36 @@ int sys_settls(void __user *tlsptr) {
     return 0;
 }
 
+int sys_poll(void __user *user_fds, size_t nfds, int timeout_ms) {
+    if (nfds == 0)
+        return 0;
+
+    if (nfds > 1024)
+        return -EINVAL;
+
+    size_t fds_size = nfds * sizeof(pollfd_t);
+    pollfd_t *kfds = kmalloc(fds_size);
+    if (!kfds)
+        return -ENOMEM;
+
+    if (copy_from_user(kfds, user_fds, fds_size) != 0) {
+        kfree(kfds);
+        return -EFAULT;
+    }
+
+    int ret = do_poll(kfds, nfds, timeout_ms);
+
+    if (ret >= 0) {
+        if (copy_to_user(user_fds, kfds, fds_size) != 0) {
+            kfree(kfds);
+            return -EFAULT;
+        }
+    }
+
+    kfree(kfds);
+    return ret;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
@@ -934,5 +965,6 @@ void* syscall_table[] = {
     (void*)sys_getpgid,
     (void*)sys_setsid,
     (void*)sys_getsid,
-    (void*)sys_settls
+    (void*)sys_settls,
+    (void*)sys_poll
 };

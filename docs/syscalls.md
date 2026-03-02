@@ -61,6 +61,7 @@ System calls can be triggered using either the `syscall` instruction or with int
 #define SYS_setsid 49
 #define SYS_getsid 50
 #define SYS_settls 51
+#define SYS_poll 52
 ```
 
 A complete table of all syscalls
@@ -108,3 +109,4 @@ A complete table of all syscalls
 | setsid       | Creates a new session                                | 49                    | pid_t sid or -1                  | /              | /              | /             | /             | /           | /             |
 | getsid       | Returns session ID of a process                      | 50                    | pid_t sid or -1                  | pid_t pid      | /              | /             | /             | /           | /             |
 | settls       | Sets the address of the thread local storage         | 51                    | int (0)                          | void\* tlsaddr | /              | /             | /             | /           | /             |
+| poll         | Waits for events on file descriptors                 | 52                    | int (num ready or -1)            | pollfd\* fds   | size_t nfds    | int timeout   | /             | /           | /             |

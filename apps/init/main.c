@@ -1930,9 +1930,13 @@ void main(uintptr_t *stack_ptr) {
         print_dec(fd, parent_pid);
         print(fd, "\r\n");
 
+        char *argv[] = { "poll_test.elf", "arg1", "arg2", 0 };
+        print(fd, "[child] Executing poll_test.elf with execve...\r\n");
+        int64_t exec_ret = (int64_t)syscall3(SYS_EXECVE, (uint64_t)"/bin/poll_test.elf", (uint64_t)argv, 0);
+
         // Exit with a specific code to test waitpid
-        print(fd, "[child] Exiting with code 42...\r\n");
-        syscall1(SYS_EXIT, 42);
+        print(fd, "[child] Exiting with code 9...\r\n");
+        syscall1(SYS_EXIT, 9);
         return;
     } else {
         print(fd, "[parent] fork() returned child PID=");
