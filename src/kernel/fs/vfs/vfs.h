@@ -44,6 +44,29 @@ typedef enum vnode_type {
     VNODE_BAD,
 } vnode_type_t;
 
+#define DT_UNKNOWN 0
+#define DT_FIFO    1
+#define DT_CHR     2
+#define DT_DIR     4
+#define DT_BLK     6
+#define DT_REG     8
+#define DT_LNK     10
+#define DT_SOCK    12
+#define DT_WHT     14
+
+static inline uint8_t vnode_type_to_dtype(vnode_type_t vt) {
+    switch (vt) {
+    case VNODE_REGULAR: return DT_REG;
+    case VNODE_DIR:     return DT_DIR;
+    case VNODE_BLOCK:   return DT_BLK;
+    case VNODE_CHAR:    return DT_CHR;
+    case VNODE_LINK:    return DT_LNK;
+    case VNODE_PIPE:    return DT_FIFO;
+    case VNODE_SOCKET:  return DT_SOCK;
+    default:            return DT_UNKNOWN;
+    }
+}
+
 typedef struct statfs {
     fsid_t fsid;
 
@@ -63,10 +86,10 @@ typedef struct fid {
 
 typedef struct dirent {
     uint64_t d_ino;
-    uint64_t d_off;
-    uint64_t d_reclen;
-    uint8_t d_type;   // same as vnode_type
-    char d_name[256]; // filename !!!
+    int64_t d_off;
+    uint16_t d_reclen;
+    uint8_t d_type;
+    char d_name[256];
 } __attribute__((packed)) dirent_t;
 
 typedef struct vfs_ops {

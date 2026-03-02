@@ -244,7 +244,7 @@ static void fs_list_internal(vnode_t *dir, int depth, int max_depth,
             kprintf("  ");
         }
 
-        if (entries[i].d_type == VNODE_DIR) {
+        if (entries[i].d_type == DT_DIR) {
             char mode_buf[11];
             char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
             snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
@@ -254,7 +254,7 @@ static void fs_list_internal(vnode_t *dir, int depth, int max_depth,
             close(f);
             kfree(path_buf);
             kprintf("|- [%s] %s/\n", mode_buf, entries[i].d_name); // TODO: idk how to make it work on dirs rn
-        } else if (entries[i].d_type == VNODE_LINK) {
+        } else if (entries[i].d_type == DT_LNK) {
             char mode_buf[11];
             char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
             snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
@@ -292,7 +292,7 @@ static void fs_list_internal(vnode_t *dir, int depth, int max_depth,
             kprintf("|- [%s] %s\n", mode_buf, entries[i].d_name);
         }
 
-        if (entries[i].d_type == VNODE_DIR) {
+        if (entries[i].d_type == DT_DIR) {
             if (strcmp(entries[i].d_name, ".") == 0 ||
                 strcmp(entries[i].d_name, "..") == 0) {
                 continue;

@@ -726,7 +726,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
             entries[idx].d_ino = procfs->procs[i]->pid;
             entries[idx].d_off = idx + 1;
             entries[idx].d_reclen = sizeof(dirent_t);
-            entries[idx].d_type = VNODE_DIR;
+            entries[idx].d_type = DT_DIR;
             snprintf(entries[idx].d_name, sizeof(entries[idx].d_name), "%lu",
                      procfs->procs[i]->pid);
             idx++;
@@ -736,7 +736,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
             entries[idx].d_ino = 0;
             entries[idx].d_off = idx + 1;
             entries[idx].d_reclen = sizeof(dirent_t);
-            entries[idx].d_type = VNODE_DIR;
+            entries[idx].d_type = DT_DIR;
             strncpy(entries[idx].d_name, "self", sizeof(entries[idx].d_name) - 1);
             idx++;
         }
@@ -751,7 +751,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
                 entries[idx].d_ino = 0;
                 entries[idx].d_off = idx + 1;
                 entries[idx].d_reclen = sizeof(dirent_t);
-                entries[idx].d_type = VNODE_REGULAR;
+                entries[idx].d_type = DT_REG;
                 strncpy(entries[idx].d_name, PROCFS_FNAME_PROCINFO,
                         sizeof(entries[idx].d_name) - 1);
                 idx++;
@@ -761,7 +761,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
                 entries[idx].d_ino = 0;
                 entries[idx].d_off = idx + 1;
                 entries[idx].d_reclen = sizeof(dirent_t);
-                entries[idx].d_type = VNODE_DIR;
+                entries[idx].d_type = DT_DIR;
                 strncpy(entries[idx].d_name, PROCFS_FNAME_FDS,
                         sizeof(entries[idx].d_name) - 1);
                 idx++;
@@ -773,7 +773,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
                 entries[idx].d_ino = proc->tcbs[i]->tid;
                 entries[idx].d_off = idx + 1;
                 entries[idx].d_reclen = sizeof(dirent_t);
-                entries[idx].d_type = VNODE_DIR;
+                entries[idx].d_type = DT_DIR;
                 snprintf(entries[idx].d_name, sizeof(entries[idx].d_name), "%lu",
                          proc->tcbs[i]->tid);
                 idx++;
@@ -785,7 +785,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
                 entries[idx].d_ino = 0;
                 entries[idx].d_off = idx + 1;
                 entries[idx].d_reclen = sizeof(dirent_t);
-                entries[idx].d_type = VNODE_REGULAR;
+                entries[idx].d_type = DT_REG;
                 strncpy(entries[idx].d_name, PROCFS_FNAME_TINFO,
                         sizeof(entries[idx].d_name) - 1);
                 idx++;
@@ -807,7 +807,7 @@ int procfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
                     entries[idx].d_ino = i;
                     entries[idx].d_off = idx + 1;
                     entries[idx].d_reclen = sizeof(dirent_t);
-                    entries[idx].d_type = VNODE_LINK;
+                    entries[idx].d_type = DT_LNK;
                     snprintf(entries[idx].d_name, sizeof(entries[idx].d_name), "%zu", i);
                     idx++;
                 }

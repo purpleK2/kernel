@@ -97,22 +97,22 @@ typedef unsigned int   uint32_t;
 
 #define PAGE_SIZE 0x1000
 
-/* vnode types for d_type */
-#define VNODE_NULL    0
-#define VNODE_REGULAR 1
-#define VNODE_DIR     2
-#define VNODE_BLOCK   3
-#define VNODE_CHAR    4
-#define VNODE_LINK    5
-#define VNODE_PIPE    6
-#define VNODE_SOCKET  7
-#define VNODE_BAD     8
+/* d_type values (Linux compatible) */
+#define DT_UNKNOWN 0
+#define DT_FIFO    1
+#define DT_CHR     2
+#define DT_DIR     4
+#define DT_BLK     6
+#define DT_REG     8
+#define DT_LNK     10
+#define DT_SOCK    12
+#define DT_WHT     14
 
 /* dirent structure - must match kernel's dirent_t */
 typedef struct __attribute__((packed)) {
     uint64_t d_ino;
-    uint64_t d_off;
-    uint64_t d_reclen;
+    int64_t d_off;
+    uint16_t d_reclen;
     uint8_t  d_type;
     char     d_name[256];
 } dirent_t;
@@ -315,18 +315,18 @@ static const char *auxv_type_name(uint64_t type) {
 
 /* --- Directory walking test --- */
 
-static const char *vnode_type_name(uint8_t type) {
+static const char *dtype_name(uint8_t type) {
     switch (type) {
-        case VNODE_NULL:    return "NULL";
-        case VNODE_REGULAR: return "FILE";
-        case VNODE_DIR:     return "DIR";
-        case VNODE_BLOCK:   return "BLOCK";
-        case VNODE_CHAR:    return "CHAR";
-        case VNODE_LINK:    return "LINK";
-        case VNODE_PIPE:    return "PIPE";
-        case VNODE_SOCKET:  return "SOCKET";
-        case VNODE_BAD:     return "BAD";
-        default:            return "UNKNOWN";
+        case DT_UNKNOWN: return "UNKNOWN";
+        case DT_FIFO:    return "FIFO";
+        case DT_CHR:     return "CHAR";
+        case DT_DIR:     return "DIR";
+        case DT_BLK:     return "BLOCK";
+        case DT_REG:     return "FILE";
+        case DT_LNK:     return "LINK";
+        case DT_SOCK:    return "SOCKET";
+        case DT_WHT:     return "WHT";
+        default:         return "?";
     }
 }
 
@@ -421,14 +421,12 @@ static void walk_directory(uint64_t outfd, const char *path, int depth) {
 
         print_indent(outfd, depth);
         print(outfd, "[");
-        print(outfd, vnode_type_name(entry.d_type));
+        print(outfd, dtype_name(entry.d_type));
         print(outfd, "] ");
         print(outfd, entry.d_name);
         print(outfd, "\r\n");
 
-        /* If it's a directory, recurse into it */
-        if (entry.d_type == VNODE_DIR && entry.d_name[0] != '\0') {
-            /* Build the full path */
+        if (entry.d_type == DT_DIR && entry.d_name[0] != '\0') {
             char child_path[512];
             strcpy(child_path, path);
             

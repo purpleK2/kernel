@@ -9,8 +9,8 @@
 #define NS_PER_TICK    CONFIG_SCHED_TIMER_INTERVAL_MS * 1000000ULL
 
 typedef struct timespec {
-    uint64_t tv_sec;
-    uint64_t tv_nsec;
+    int64_t tv_sec;
+    int64_t tv_nsec;
 } timespec_t;
 
 void sleep_init(void);

@@ -15,12 +15,25 @@ typedef enum fcntl_cmd {
     F_SETFL = 1,
 } fcntl_cmd_t;
 
-#define O_APPEND    (1 << 0) // append mode
-#define O_CREATE    (1 << 1) // todo: file permissions on creation
-#define O_DIRECTORY (1 << 2) // must be a directory
-// TODO: #define O_PATH      // return a file descriptor
-#define PIPE_READ_END  (1 << 2)
-#define PIPE_WRITE_END (1 << 3)
+#define O_RDONLY    0x0000
+#define O_WRONLY    0x0001
+#define O_RDWR      0x0002
+#define O_ACCMODE   0x0003
+#define O_CREAT     0x0040
+#define O_EXCL      0x0080
+#define O_NOCTTY    0x0100
+#define O_TRUNC     0x0200
+#define O_APPEND    0x0400
+#define O_NONBLOCK  0x0800
+#define O_DSYNC     0x1000
+#define O_SYNC      0x101000
+#define O_DIRECTORY 0x10000
+#define O_NOFOLLOW  0x20000
+#define O_CLOEXEC   0x80000
+#define O_CREATE    O_CREAT
+
+#define PIPE_READ_END  (1 << 20)
+#define PIPE_WRITE_END (1 << 21)
 
 #define SPECIAL_FILE_TYPE_PIPE   (1 << 4)
 #define SPECIAL_FILE_TYPE_DEVICE (1 << 5)

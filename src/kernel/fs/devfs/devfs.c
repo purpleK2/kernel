@@ -474,10 +474,10 @@ int devfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
         entries[i].d_off = i + 1;
         entries[i].d_reclen = sizeof(dirent_t);
         entries[i].d_type =
-            c->type == DEVFS_TYPE_DIR ? VNODE_DIR :
-            c->type == DEVFS_TYPE_BLOCK ? VNODE_BLOCK :
-            c->type == DEVFS_TYPE_CHAR ? VNODE_CHAR :
-            VNODE_REGULAR;
+            c->type == DEVFS_TYPE_DIR ? DT_DIR :
+            c->type == DEVFS_TYPE_BLOCK ? DT_BLK :
+            c->type == DEVFS_TYPE_CHAR ? DT_CHR :
+            DT_REG;
         strncpy(entries[i].d_name, c->name, sizeof(entries[i].d_name) - 1);
         entries[i].d_name[sizeof(entries[i].d_name) - 1] = 0;
         i++;

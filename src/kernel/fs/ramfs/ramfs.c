@@ -563,11 +563,11 @@ int ramfs_readdir(vnode_t *vnode, dirent_t *entries, size_t *count) {
         entries[idx].d_reclen = sizeof(dirent_t);
 
         if (child->type == RAMFS_DIRECTORY) {
-            entries[idx].d_type = VNODE_DIR;
+            entries[idx].d_type = DT_DIR;
         } else if (child->type == RAMFS_SYMLINK) {
-            entries[idx].d_type = VNODE_LINK;
+            entries[idx].d_type = DT_LNK;
         } else {
-            entries[idx].d_type = VNODE_REGULAR;
+            entries[idx].d_type = DT_REG;
         }
 
         strncpy(entries[idx].d_name, child->name,
