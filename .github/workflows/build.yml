@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y xorriso diffutils patch kconfig-frontends mtools fasm
+          sudo apt install -y xorriso diffutils patch kconfig-frontends mtools fasm make gcc
 
       - name: Kconfig
         run: |
@@ -35,7 +35,7 @@ jobs:
           make -C libs/limine
 
       - name: Build kernel
-        run: make -j$(nproc) KCC=clang KLD=ld.lld all all-hdd
+        run: make -j$(nproc) KCC=gcc KLD=ld all all-hdd
 
       - name: Upload kernel-v0.iso as artifact
         uses: actions/upload-artifact@v4
