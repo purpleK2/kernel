@@ -1,8 +1,22 @@
 ARCH=x86_64
 TARGET_BASE=$(ARCH)
-TARGET=$(TARGET_BASE)-elf
-TOOLCHAIN_PREFIX=$(abspath toolchain/$(TARGET))
-export PATH:=$(TOOLCHAIN_PREFIX)/bin:$(PATH)
+
+KERNEL_TARGET=$(TARGET_BASE)-elf
+KERNEL_TOOLCHAIN_PREFIX=$(abspath toolchain/kernel-toolchain)
+
+USERSPACE_TARGET=$(TARGET_BASE)-purplek2
+USERSPACE_TOOLCHAIN_PREFIX=$(abspath toolchain/userspace-toolchain)
+SYSROOT_DIR=$(abspath sysroot)
+
+TARGET=$(KERNEL_TARGET)
+TOOLCHAIN_PREFIX=$(KERNEL_TOOLCHAIN_PREFIX)
+
+export PATH:=$(KERNEL_TOOLCHAIN_PREFIX)/bin:$(USERSPACE_TOOLCHAIN_PREFIX)/bin:$(PATH)
+
+export USERSPACE_CC=$(USERSPACE_TARGET)-gcc
+export USERSPACE_LD=$(USERSPACE_TARGET)-ld
+export USERSPACE_SYSROOT=$(SYSROOT_DIR)
+export USERSPACE_TARGET
 
 OS_CODENAME=kernel-v0
 
@@ -16,7 +30,7 @@ ISO_DIR=iso
 BUILD_DIR=build
 
 OBJS_DIR=$(BUILD_DIR)/objs
-INITRD_DIR=target
+INITRD_DIR=sysroot
 INITRD=initrd.cpio
 
 KCONFIG_CONFIG = .config
@@ -228,27 +242,27 @@ $(LIBS_DIR)/limine/limine:
 	make -C $(LIBS_DIR)/limine
 
 modules:
-	@mkdir -p target/kmod
+	@mkdir -p $(SYSROOT_DIR)/kmod
 	@for dir in $(MODULE_DIRS); do \
 		echo "--> Building module in $$dir"; \
 		$(MAKE) -C $$dir; \
 		for km in $$dir/*.km; do \
 			if [ -f $$km ]; then \
-				cp -v $$km target/kmod/; \
+				cp -v $$km $(SYSROOT_DIR)/kmod/; \
 			fi; \
 		done; \
 	done
 
 .PHONY: apps
 apps:
-	@mkdir -p target/bin
+	@mkdir -p $(SYSROOT_DIR)/bin
 	@for dir in $(APPS_DIRS); do \
 		echo "--> Building app in $$dir"; \
 		$(MAKE) -C $$dir; \
 		for f in $$dir/*; do \
 			if [ -f "$$f" ] && \
 			   readelf -h "$$f" 2>/dev/null | grep -Eq "Type:[[:space:]]*(EXEC|DYN)"; then \
-				cp -v "$$f" target/bin; \
+				cp -v "$$f" $(SYSROOT_DIR)/bin; \
 			fi; \
 		done; \
 	done

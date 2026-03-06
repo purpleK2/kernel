@@ -1832,7 +1832,7 @@ pipe_done:
 void main(uintptr_t *stack_ptr) {
     uint64_t *stack = (uint64_t *)stack_ptr;
     
-    uint64_t fd = 1; // stdout
+    uint64_t fd = syscall3(SYS_OPEN, (uint64_t)"/dev/ttyS0", 0, 0); // stdout
 
     uint64_t pid = syscall0(SYS_GETPID);
     
@@ -1931,10 +1931,9 @@ void main(uintptr_t *stack_ptr) {
         char *argv[] = { "poll_test.elf", "arg1", "arg2", 0 };
         print(fd, "[child] Executing poll_test.elf with execve...\r\n");
         int64_t exec_ret = (int64_t)syscall3(SYS_EXECVE, (uint64_t)"/bin/poll_test.elf", (uint64_t)argv, 0);
-
-        // Exit with a specific code to test waitpid
-        print(fd, "[child] Exiting with code 9...\r\n");
-        syscall1(SYS_EXIT, 9);
+        print(fd, "[child] execve returned: ");
+        print_int(fd, exec_ret);
+        print(fd, "\r\n");
         return;
     } else {
         print(fd, "[parent] fork() returned child PID=");

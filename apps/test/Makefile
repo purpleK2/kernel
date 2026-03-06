@@ -1,4 +1,9 @@
+# PurpleK2 Userspace Application: test
+
 .PHONY: all clean
+
+# Include shared userspace toolchain configuration
+include ../userspace.mk
 
 TARGET = test.elf
 C_SRCS = main.c
@@ -6,34 +11,12 @@ ASM_SRCS = scrt.asm
 
 OBJS = $(C_SRCS:.c=.o) $(ASM_SRCS:.asm=.o)
 
-CC = clang
-FASM = fasm
-
-CFLAGS = -target x86_64-unknown-none \
-         -ffreestanding \
-         -fno-stack-protector \
-         -fPIE \
-         -O0 \
-         -g \
-         -nostdlib \
-         -Wall \
-         -Wextra
-
-LDFLAGS = -nostdlib \
-          -pie \
-          --entry=_start \
-          -o $(TARGET)
+LDFLAGS = $(LDFLAGS_BASE) -o $(TARGET)
 
 all: $(TARGET)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.asm
-	$(FASM) $< $@
-
 $(TARGET): $(OBJS)
-	ld $(OBJS) $(LDFLAGS)
+	$(LD) $(OBJS) $(LDFLAGS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)

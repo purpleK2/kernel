@@ -59,6 +59,8 @@ iso
 toolchain/binutils*
 toolchain/gcc*
 toolchain/x86_64-elf
+toolchain/kernel-toolchain
+toolchain/userspace-toolchain
 
 # External libraries will be updated and copied from their repos
 src/kernel/system/limine.*
