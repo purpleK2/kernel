@@ -271,6 +271,24 @@ libs:
 	@./libs/clone_repos.sh libs/
 	@./libs/get_deps.sh src/kernel libs/
 	@$(MAKE) limine_build
+	@git clone --depth 1 https://github.com/purpleK2/mlibc.git libc/mlibc
+
+TOOLCHAIN := $(CURDIR)/toolchain/userspace-toolchain/bin
+
+.PHONY: libc
+libc:
+	cd libc/mlibc && \
+	mkdir -p headers-build && \
+	meson setup --cross-file=../purpleK2-cross.txt --prefix=/usr -Dheaders_only=true \
+		headers-build && \
+	DESTDIR=$(USERSPACE_SYSROOT) meson install -C headers-build && \
+	PATH=$(TOOLCHAIN):$$PATH meson setup \
+		--cross-file=../purpleK2-cross.txt \
+		--prefix=/usr \
+		-Ddefault_library=static \
+		-Dno_headers=true \
+		build && \
+	PATH=$(TOOLCHAIN):$$PATH ninja -C build
 
 # Create initrd image
 $(BUILD_DIR)/$(INITRD): modules apps

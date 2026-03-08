@@ -15,7 +15,7 @@ System calls can be triggered using either the `syscall` instruction or with int
 - The **3. Syscall Argument** is passed using the **`RDX`** register
 - The **4. Syscall Argument** is passed using the **`R8`** register
 - The **5. Syscall Argument** is passed using the **`R9`** register
-- The **5. Syscall Argument** is passed using the **`R10`** register
+- The **6. Syscall Argument** is passed using the **`R10`** register
 
 ## Syscall Table
 

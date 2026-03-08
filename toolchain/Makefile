@@ -122,7 +122,7 @@ $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-ld: $(BINUTILS_SRC).tar.xz
 	$(call PATCH_CONFIG_SUB,$(BINUTILS_SRC))
 	mkdir -p $(USERSPACE_BINUTILS_BUILD)
 	cd $(USERSPACE_BINUTILS_BUILD) && \
-		CFLAGS= ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= \
+		CFLAGS= ASMFLAGS= CC=clang CXX=clang++ LD= ASM= LINKFLAGS= LIBS= \
 		../$(BINUTILS_SRC)/configure \
 			--target=$(USERSPACE_TARGET) \
 			--prefix="$(USERSPACE_TOOLCHAIN_PREFIX)" \
@@ -140,7 +140,7 @@ $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc: $(USERSPACE_TOOLCHAIN
 	$(call PATCH_CONFIG_SUB,$(GCC_SRC))
 	mkdir -p $(USERSPACE_GCC_BUILD)
 	cd $(USERSPACE_GCC_BUILD) && \
-		CFLAGS= ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= \
+		CFLAGS= ASMFLAGS= CC=clang CXX=clang++ LD= ASM= LINKFLAGS= LIBS= \
 		../$(GCC_SRC)/configure \
 			--target=$(USERSPACE_TARGET) \
 			--prefix="$(USERSPACE_TOOLCHAIN_PREFIX)" \
@@ -185,8 +185,7 @@ userspace-toolchain-gcc-full:
 			--enable-threads=posix \
 			--disable-multilib \
 			--enable-shared \
-			--enable-host-shared \
-			--disable-nls
+			--enable-host-shared 
 	$(MAKE) -j$(CPU_CORES) -C $(USERSPACE_GCC_BUILD) all-gcc all-target-libgcc
 	$(MAKE) -C $(USERSPACE_GCC_BUILD) install-gcc install-target-libgcc
 	@echo "=== Full GCC rebuild complete ==="

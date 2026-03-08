@@ -14,3 +14,7 @@
 [submodule "libs/limine-protocol"]
 	path = libs/limine-protocol
 	url = https://github.com/limine-bootloader/limine-protocol.git
+
+[submodule "libc/mlibc"]
+	path = libc/mlibc
+	url = https://github.com/purpleK2/mlibc.git

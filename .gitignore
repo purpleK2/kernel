@@ -67,12 +67,16 @@ src/kernel/system/limine.*
 src/kernel/system/nanoprintf.*
 src/kernel/acpi/uacpi
 
+# sysroot stuff
+sysroot/usr/include
+
 # final OS build files
 *.iso
 *.hdd
 
 # Cache and stuff made by LSPs
 *.cache
+libc/mlibc/.cache
 *.ccls-cache
 compile_commands.json
 
