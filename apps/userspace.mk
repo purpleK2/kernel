@@ -16,7 +16,8 @@ USERSPACE_CFLAGS = \
 	-O2 \
 	-g \
 	-Wall \
-	-Wextra
+	-Wextra \
+	-static
 
 USERSPACE_CFLAGS_BOOTSTRAP = \
 	--sysroot=$(USERSPACE_SYSROOT) \
@@ -32,8 +33,11 @@ USERSPACE_CFLAGS_BOOTSTRAP = \
 
 USERSPACE_LDFLAGS = \
 	--sysroot=$(USERSPACE_SYSROOT) \
-	-pie \
-	--entry=_start
+	-static \
+	$(USERSPACE_SYSROOT)/usr/lib/Scrt1.o \
+	$(USERSPACE_SYSROOT)/usr/lib/crti.o \
+	-lc \
+	$(USERSPACE_SYSROOT)/usr/lib/crtn.o
 
 USERSPACE_LDFLAGS_BOOTSTRAP = \
 	-nostdlib \

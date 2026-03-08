@@ -322,6 +322,20 @@ void pf_handler(registers_t *ctx) {
 
     if (is_in_proc(ctx) || PG_IF(pf_error_code)) {
         // todo signals
+        debugf("Page fault in process %d (rip=%p, cr2=%p)\n",
+               get_current_pcb() ? get_current_pcb()->pid : -1, (void*)ctx->rip, (void*)cr2);
+        debugf("More info:\n");
+        debugf("  P: %d\n", PG_PRESENT(pf_error_code));
+        debugf("  W/R: %d\n", PG_WR_RD(pf_error_code));
+        debugf("  U/S: %d\n", PG_RING(pf_error_code));
+        debugf("  Reserved write: %d\n", PG_RESERVED(pf_error_code));
+        debugf("  Instruction fetch: %d\n", PG_IF(pf_error_code));
+        debugf("  PK: %d\n", PG_PK(pf_error_code));
+        debugf("  SS: %d\n", PG_SS(pf_error_code));
+        debugf("  SGX: %d\n", PG_SGX(pf_error_code));
+        debugf("PTABLE WALK:\n");
+        uint64_t *active_pml4 = (uint64_t *)cpu_get_cr(3);
+        dump_page_walk(active_pml4, cr2);
         proc_exit(ENOMEM);
         yield(ctx);
         return;

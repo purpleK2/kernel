@@ -2,13 +2,12 @@
 
 include ../userspace.mk
 
-TARGET = init.elf
+TARGET = libc_test.elf
 C_SRCS = main.c
-ASM_SRCS = scrt.asm
 
-OBJS = $(C_SRCS:.c=.o) $(ASM_SRCS:.asm=.o)
+OBJS = $(C_SRCS:.c=.o)
 
-LDFLAGS = $(USERSPACE_LDFLAGS_BOOTSTRAP) -o $(TARGET)
+LDFLAGS = $(LDFLAGS_BASE) -o $(TARGET)
 
 all: $(TARGET)
 

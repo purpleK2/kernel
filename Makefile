@@ -281,14 +281,16 @@ libc:
 	mkdir -p headers-build && \
 	meson setup --cross-file=../purpleK2-cross.txt --prefix=/usr -Dheaders_only=true \
 		headers-build && \
-	DESTDIR=$(USERSPACE_SYSROOT) meson install -C headers-build && \
-	PATH=$(TOOLCHAIN):$$PATH meson setup \
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 DESTDIR=$(USERSPACE_SYSROOT) meson install -C headers-build && \
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 PATH=$(TOOLCHAIN):$$PATH meson setup \
 		--cross-file=../purpleK2-cross.txt \
 		--prefix=/usr \
 		-Ddefault_library=static \
 		-Dno_headers=true \
 		build && \
-	PATH=$(TOOLCHAIN):$$PATH ninja -C build
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 PATH=$(TOOLCHAIN):$$PATH ninja -C build
+	cp -v libc/mlibc/build/*.a $(USERSPACE_SYSROOT)/usr/lib/
+	cp -v libc/mlibc/build/sysdeps/purpleK2/*.o $(USERSPACE_SYSROOT)/usr/lib/
 
 # Create initrd image
 $(BUILD_DIR)/$(INITRD): modules apps

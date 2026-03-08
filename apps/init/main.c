@@ -233,7 +233,7 @@ static const char filename[] = "/dev/e9";
 
 __thread uint64_t thread_local_var = 67;
 
-static size_t strlen(const char *s) {
+size_t strlen(const char *s) {
     size_t len = 0;
     while (s[len]) len++;
     return len;
@@ -1832,7 +1832,7 @@ pipe_done:
 void main(uintptr_t *stack_ptr) {
     uint64_t *stack = (uint64_t *)stack_ptr;
     
-    uint64_t fd = syscall3(SYS_OPEN, (uint64_t)"/dev/ttyS0", 0, 0); // stdout
+    uint64_t fd = 1; // stdout
 
     uint64_t pid = syscall0(SYS_GETPID);
     

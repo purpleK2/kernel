@@ -644,7 +644,11 @@ int vfs_write(vnode_t *vnode, void *buf, size_t size, size_t offset) {
 
     int ret = vnode->ops->write(vnode, buf, &size, &offset);
 
-    return ret;
+    if (ret != EOK) {
+        return ret;
+    } else {
+        return size;
+    }
 }
 
 int vfs_ioctl(vnode_t *vnode, int request, void *arg) {

@@ -640,7 +640,7 @@ int sys_readlink(const char __user *path, char __user *buf, size_t size) {
     return ret;
 }
 
-long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, size_t offset) {
+long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, off_t offset) {
     pcb_t *current = get_current_pcb();
     if (!current || !current->vmc) {
         return (long)(uintptr_t)MAP_FAILED;

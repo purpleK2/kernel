@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "stdio.h"
 
 #include <graphical/framebuffer.h>
 #include <limine.h>
@@ -13,6 +14,8 @@
 
 uint64_t char_cursor_x = 0;
 uint64_t char_cursor_y = 0;
+static uint64_t old_cursor_x = 0;
+static uint64_t old_cursor_y = 0;
 
 struct terminal_ctx terminal_ctx;
 struct limine_framebuffer *framebuffer_86 = NULL;
@@ -108,6 +111,17 @@ void _term_render_cursor(uint64_t x, uint64_t y) {
     if (!init || !framebuffer_86)
         return;
 
+    if (old_cursor_x != x || old_cursor_y != y) {
+        uint64_t old_row = (scroll_base + old_cursor_y) % MAX_ROWS;
+        char old_char = screen_buffer[old_row][old_cursor_x];
+        uint32_t old_rgb = rgb_buffer[old_row][old_cursor_x];
+        uint32_t r = (old_rgb >> framebuffer_86->red_mask_shift) & 0xFF;
+        uint32_t g = (old_rgb >> framebuffer_86->green_mask_shift) & 0xFF;
+        uint32_t b = (old_rgb >> framebuffer_86->blue_mask_shift) & 0xFF;
+        if (old_char == 0) old_char = ' ';
+        draw_char_at(old_cursor_x, old_cursor_y, old_char, r, g, b);
+    }
+
     uint64_t px = x * 8;
     uint64_t py = y * 14;
 
@@ -116,6 +130,9 @@ void _term_render_cursor(uint64_t x, uint64_t y) {
             drawPixel(px + i, py + j, fg_color[0], fg_color[1], fg_color[2]);
         }
     }
+
+    old_cursor_x = x;
+    old_cursor_y = y;
 }
 
 static void scroll_up_by_one() {
@@ -134,18 +151,9 @@ void _term_putc(char c) {
         _term_init();
 
     if (c == '\n') {
-        // 8 should be the char width
-        for (; char_cursor_x < terminal_ctx.columns;) {
-            draw_char_at(char_cursor_x, char_cursor_y, ' ', fg_color[0],
-                         fg_color[1], fg_color[2]);
-            char_cursor_x++;
-        }
-
         char_cursor_x = 0;
         char_cursor_y++;
     } else if (c == '\r') {
-        draw_char_at(char_cursor_x, char_cursor_y, ' ', fg_color[0],
-                     fg_color[1], fg_color[2]);
         char_cursor_x = 0;
     } else if (c == '\b') {
         if (char_cursor_x > 0) {

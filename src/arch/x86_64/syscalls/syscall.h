@@ -98,7 +98,7 @@ int sys_rmdir(const char __user *path);
 int sys_remove(const char __user *path);
 int sys_symlink(const char __user *target, const char __user *linkpath);
 int sys_readlink(const char __user *path, char __user *buf, size_t size);
-long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, size_t offset);
+long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int sys_munmap(void __user *addr, size_t length);
 int sys_mprotect(void __user *addr, size_t length, int prot);
 int sys_msync(void __user *addr, size_t length, int flags);
