@@ -46,7 +46,8 @@ QEMU_FLAGS = -m 2G \
     		 -debugcon stdio \
     		 -M q35 \
     		 -smp 2 \
-			 -enable-kvm 
+			 -enable-kvm  \
+			 -cpu host
 
 QEMU_FLAGS_GDB = -m 2G \
     		 -debugcon file:qemu_gdb.log \
