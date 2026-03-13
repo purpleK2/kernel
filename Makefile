@@ -46,9 +46,7 @@ QEMU_FLAGS = -m 2G \
     		 -debugcon stdio \
     		 -M q35 \
     		 -smp 2 \
-			 -enable-kvm \
-    		 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
-		 	 -device rtl8139,netdev=net0,mac=52:54:00:12:34:56
+			 -enable-kvm 
 
 QEMU_FLAGS_GDB = -m 2G \
     		 -debugcon file:qemu_gdb.log \

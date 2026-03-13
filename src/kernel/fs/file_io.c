@@ -119,6 +119,10 @@ int write(fileio_t *file, void *buf, size_t size) {
 }
 
 int close(fileio_t *file) {
+    if (!file) {
+        return -EINVAL;
+    }
+
     vnode_t *vn = file->private;
 
     if (file->flags & PIPE_READ_END || file->flags & PIPE_WRITE_END) {

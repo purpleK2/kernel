@@ -1,5 +1,6 @@
 #include "paging.h"
 #include "errors.h"
+#include "interrupts/isr.h"
 #include "uaccess.h"
 
 #include <autoconf.h>
@@ -82,26 +83,15 @@ bool is_in_proc(registers_t *ctx) {
     bool is_cpl_3 = (ctx->cs & 0x3) == 0x3;
     bool is_user_stack =
         is_cpl_3 && (ctx->ss & 0x3) == 0x3;
-    /*
-     * Treat a fault as coming from a user process when:
-     *  - CPL == 3 (user mode),
-     *  - SS is also a user segment, and
-     *  - RIP is below the kernel's higher-half virtual base.
-     *
-     * The original implementation compared kernel_base_virtual > RIP,
-     * which misclassified user-mode faults as kernel-mode because the
-     * kernel base is in the higher half. We instead consider RIP >=
-     * kernel_base_virtual as kernel, everything below as user.
-     */
     bool is_rip_kernel_virt =
         ctx->rip >= get_bootloader_data()->kernel_base_virtual;
 
     return is_cpl_3 && is_user_stack && !is_rip_kernel_virt;
 }
 
-static bool handle_cow_fault(uint64_t fault_addr) {
-    debugf_debug("COW fault at %p, PID=%d\n", (void*)fault_addr, get_current_pcb()->pid);
+static bool handle_cow_fault(uint64_t fault_addr, uint64_t where) {
     pcb_t *proc = get_current_pcb();
+    (void)where;
     if (!proc || !proc->vmc) {
         return false;
     }
@@ -166,8 +156,8 @@ static bool handle_cow_fault(uint64_t fault_addr) {
 
         pmm_page_ref_dec((void *)old_phys);
 
-        uint64_t new_entry = PG_GET_ADDR((uint64_t)new_phys) |
-                             ((entry | PMLE_WRITE) & ~PMLE_COW);
+        uint64_t new_flags = (PG_FLAGS(entry) | PMLE_WRITE) & ~PMLE_COW;
+        uint64_t new_entry = PG_GET_ADDR((uint64_t)new_phys) | new_flags;
         page_table[ptab_index] = new_entry;
     }
 
@@ -178,8 +168,6 @@ static bool handle_cow_fault(uint64_t fault_addr) {
 
     return true;
 }
-
-// top 10 things to break once something changes :sob:
 __attribute__((noreturn))
 void jump_to(void *addr)
 {
@@ -256,7 +244,7 @@ void pf_handler(registers_t *ctx) {
 
     if (is_in_proc(ctx) && PG_PRESENT(pf_error_code) &&
         PG_WR_RD(pf_error_code) && !PG_IF(pf_error_code)) {
-        if (handle_cow_fault(cr2)) {
+        if (handle_cow_fault(cr2, ctx->rip)) {
             return;
         }
     }
@@ -322,8 +310,8 @@ void pf_handler(registers_t *ctx) {
 
     if (is_in_proc(ctx) || PG_IF(pf_error_code)) {
         // todo signals
-        debugf("Page fault in process %d (rip=%p, cr2=%p)\n",
-               get_current_pcb() ? get_current_pcb()->pid : -1, (void*)ctx->rip, (void*)cr2);
+        debugf("Page fault in process %d (rip=%p, cr2=%p, fsbase=%p)\n",
+               get_current_pcb() ? get_current_pcb()->pid : -1, (void*)ctx->rip, (void*)cr2, (void*)_cpu_get_msr(0xC0000100));
         debugf("More info:\n");
         debugf("  P: %d\n", PG_PRESENT(pf_error_code));
         debugf("  W/R: %d\n", PG_WR_RD(pf_error_code));
@@ -334,7 +322,7 @@ void pf_handler(registers_t *ctx) {
         debugf("  SS: %d\n", PG_SS(pf_error_code));
         debugf("  SGX: %d\n", PG_SGX(pf_error_code));
         debugf("PTABLE WALK:\n");
-        uint64_t *active_pml4 = (uint64_t *)cpu_get_cr(3);
+        uint64_t *active_pml4 = (uint64_t *)ctx->cr3;
         dump_page_walk(active_pml4, cr2);
         proc_exit(ENOMEM);
         yield(ctx);

@@ -35,6 +35,7 @@ registers_t *get_syscall_context(void) {
 
 void sys_exit(int status) {
     registers_t *ctx = get_syscall_context();
+
     proc_exit(status);
     yield(ctx);
 }
@@ -50,7 +51,7 @@ int sys_open(const char __user *path, int flags, mode_t mode) {
     if (copy_from_user(kpath, path, sizeof(kpath)) != 0) {
         return -EFAULT;
     }
-    kpath[sizeof(kpath) - 1] = '\0'; // Ensure null termination
+        kpath[sizeof(kpath) - 1] = '\0';
 
     fileio_t *file = open(kpath, flags, mode);
     if (!file) {
@@ -132,11 +133,15 @@ int sys_close(int fd) {
         return -EBADF;
     }
 
-    fd_entry_t *e = &current->fd_table.entries[fd];
-    if (!e) {
+    if ((size_t)fd >= current->fd_table.size) {
         return -EBADF;
     }
 
+    fd_entry_t *e = &current->fd_table.entries[fd];
+
+    if (e->type == FD_NONE) {
+        return -EBADF;
+    }
 
     if (e->type == FD_DIR) {
         sys_closedir(fd);
@@ -194,7 +199,7 @@ int sys_fcntl(int fd, int op, void *arg) {
     return -fcntl(file, op, arg);
 }
 
-int sys_dup(int fd) {
+int sys_dup(int fd, int newfd) {
     pcb_t *current = get_current_pcb();
     if (fd < 0) {
         return -EFAULT;
@@ -207,17 +212,48 @@ int sys_dup(int fd) {
 
     fileio_t *new_file = kmalloc(sizeof(fileio_t));
     if (!new_file) {
-        return -EFAULT;
+        return -ENOMEM;
     }
     memcpy(new_file, file, sizeof(fileio_t));
 
-    int new_fd = fd_alloc(&current->fd_table, FD_FILE, new_file);
-    if (new_fd < 0) {
-        kfree(new_file);
-        return -new_fd;
+    int result_fd;
+    if (newfd >= 0) {
+        if ((size_t)newfd < current->fd_table.size && 
+            current->fd_table.entries[newfd].type != FD_NONE) {
+            sys_close(newfd);
+        }
+
+        while ((size_t)newfd >= current->fd_table.size) {
+            size_t new_size = current->fd_table.size ? current->fd_table.size * 2 : 8;
+            if (new_size <= (size_t)newfd) {
+                new_size = (size_t)newfd + 1;
+            }
+            fd_entry_t *n = krealloc(current->fd_table.entries, 
+                                     new_size * sizeof(fd_entry_t));
+            if (!n) {
+                kfree(new_file);
+                return -ENOMEM;
+            }
+            for (size_t i = current->fd_table.size; i < new_size; i++) {
+                n[i].type = FD_NONE;
+                n[i].ptr = NULL;
+            }
+            current->fd_table.entries = n;
+            current->fd_table.size = new_size;
+        }
+
+        current->fd_table.entries[newfd].type = FD_FILE;
+        current->fd_table.entries[newfd].ptr = new_file;
+        result_fd = newfd;
+    } else {
+        result_fd = fd_alloc(&current->fd_table, FD_FILE, new_file);
+        if (result_fd < 0) {
+            kfree(new_file);
+            return -result_fd;
+        }
     }
 
-    return new_fd;
+    return result_fd;
 }
 
 int sys_getpid(void) {
@@ -442,7 +478,7 @@ int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
 }
 
 int sys_mount(const char __user *device, const char __user *fstype, const char __user *path, int flags, void __user *data) {
-    UNUSED(flags); // todo: un-unuse flags
+    UNUSED(flags);
 
     char    kernel_device[4096];
     char    kernel_fstype[4096];
@@ -527,12 +563,13 @@ int sys_opendir(const char __user *path) {
     dh->entries = ents;
     dh->count   = count;
     dh->index   = 0;
+    dh->syscall_ret_num = 1;
 
     int fd = fd_alloc(&get_current_pcb()->fd_table, FD_DIR, dh);
     return fd;
 }
 
-int sys_readdir(int fd, dirent_t __user *out) {
+int sys_readdir(int fd, void __user *buf, size_t max_size) {
     dir_handle_t *dh = fd_get(&get_current_pcb()->fd_table, fd, FD_DIR);
     if (!dh) {
         return -EBADF;
@@ -542,13 +579,32 @@ int sys_readdir(int fd, dirent_t __user *out) {
         return 0;
     }
 
-    dirent_t *entry = &dh->entries[dh->index];
-    size_t ret = copy_to_user(out, entry, sizeof(dirent_t));
-    if (ret != 0) {
-        return -ret;
+    size_t bytes_written = 0;
+    char *out = (char *)buf;
+
+    while (dh->index < dh->count) {
+        dirent_t *entry = &dh->entries[dh->index];
+
+        size_t name_len = strlen(entry->d_name);
+        size_t entry_size = offsetof(dirent_t, d_name) + name_len + 1;
+
+        entry_size = (entry_size + 7) & ~7UL;
+
+        entry->d_reclen = entry_size;
+
+        if (bytes_written + entry_size > max_size) {
+            break;
+        }
+
+        if (copy_to_user(out + bytes_written, entry, entry_size) != 0) {
+            return bytes_written > 0 ? (int)bytes_written : -EFAULT;
+        }
+
+        bytes_written += entry_size;
+        dh->index++;
     }
-    dh->index++;
-    return 1;
+
+    return (int)bytes_written;
 }
 
 int sys_closedir(int fd) {
@@ -777,7 +833,7 @@ int64_t sys_getpgrp(void) {
     }
     return current->pgid;
 }
-
+    
 int64_t sys_setpgid(int pid, int pgid) {
     pcb_t *current = get_current_pcb();
     if (!current) {
@@ -848,8 +904,6 @@ int64_t sys_setsid(void) {
     current->pgid = current->pid;
     current->is_session_leader = 1;
 
-    // todo: controlling terminal shenanigans
-    
     return current->sid;
 }
 

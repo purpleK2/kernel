@@ -5,8 +5,8 @@
 
 #include <autoconf.h>
 
-#define TICKS_PER_SEC  CONFIG_SCHED_TIMER_INTERVAL_MS * 1000
-#define NS_PER_TICK    CONFIG_SCHED_TIMER_INTERVAL_MS * 1000000ULL
+#define TICKS_PER_SEC  (1000ULL / (CONFIG_SCHED_TIMER_INTERVAL_MS))
+#define NS_PER_TICK    ((uint64_t)(CONFIG_SCHED_TIMER_INTERVAL_MS) * 1000000ULL)
 
 typedef struct timespec {
     int64_t tv_sec;

@@ -62,6 +62,7 @@ typedef struct dir_handle {
     dirent_t *entries;
     size_t    count;
     size_t    index;
+    size_t    syscall_ret_num;
 } dir_handle_t;
 
 fileio_t *fio_create();

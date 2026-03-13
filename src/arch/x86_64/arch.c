@@ -1,5 +1,6 @@
 #include "arch.h"
 
+#include <autoconf.h>
 #include <cpu.h>
 #include <gdt/gdt.h>
 #include <idt/idt.h>
@@ -15,7 +16,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define PIT_TICKS 1000 / 1 // 1 ms
+#define PIT_TICKS (1000 / CONFIG_SCHED_TIMER_INTERVAL_MS)
 
 bool pit;
 bool tsc;

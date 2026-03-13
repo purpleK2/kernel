@@ -26,7 +26,7 @@ int do_nanosleep(const timespec_t *req, timespec_t *rem) {
     if (!req)
         return -EINVAL;
 
-    if (req->tv_nsec >= 1000000000ULL)
+    if (req->tv_sec < 0 || req->tv_nsec < 0 || req->tv_nsec >= 1000000000LL)
         return -EINVAL;
 
     tcb_t *me = get_current_tcb();
@@ -37,16 +37,19 @@ int do_nanosleep(const timespec_t *req, timespec_t *rem) {
     if (!ctx)
         return -EFAULT;
     
-    uint64_t ms = req->tv_sec * 1000 + req->tv_nsec / NS_PER_TICK;
+    uint64_t ticks = req->tv_sec * TICKS_PER_SEC;
+    ticks += (uint64_t)req->tv_nsec / NS_PER_TICK;
+    if (((uint64_t)req->tv_nsec % NS_PER_TICK) != 0)
+        ticks++;
 
-    if (ms == 0 && (req->tv_sec > 0 || req->tv_nsec > 0))
-        ms = 1;
+    if (ticks == 0 && (req->tv_sec > 0 || req->tv_nsec > 0))
+        ticks = 1;
 
-    if (ms == 0)
+    if (ticks == 0)
         return 0;
 
     uint64_t now    = get_ticks();
-    uint64_t target = now + ms;
+    uint64_t target = now + ticks;
 
     ctx->rax = 0;
 

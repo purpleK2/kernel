@@ -463,7 +463,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
     uint64_t *parent_pml4 = (uint64_t *)PHYS_TO_VIRTUAL(parent->pml4_table);
     uint64_t *child_pml4  = (uint64_t *)PHYS_TO_VIRTUAL(child->pml4_table);
 
-    // Initialize child PML4 - copy kernel half (entries 256-511), clear user half
     memset(child_pml4, 0, PFRAME_SIZE);
     for (int i = 256; i < 512; i++) {
         child_pml4[i] = parent_pml4[i];
@@ -483,8 +482,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
         dst          = &(*dst)->next;
     }
 
-    // Deep copy user-space page tables (entries 0-255)
-    // We need to allocate fresh page table pages for the child
     for (int pml4_idx = 0; pml4_idx < 256; pml4_idx++) {
         if (!(parent_pml4[pml4_idx] & PMLE_PRESENT)) {
             continue;
@@ -494,7 +491,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
             PG_GET_ADDR(parent_pml4[pml4_idx])
         );
         
-        // Allocate new PDPT for child
         uint64_t *child_pdpt_phys = (uint64_t *)pmm_alloc_page();
         if (!child_pdpt_phys) {
             continue;
@@ -512,7 +508,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
                 PG_GET_ADDR(parent_pdpt[pdp_idx])
             );
             
-            // Allocate new PDIR for child
             uint64_t *child_pdir_phys = (uint64_t *)pmm_alloc_page();
             if (!child_pdir_phys) {
                 continue;
@@ -530,7 +525,6 @@ vmc_t *vmc_fork(vmc_t *parent) {
                     PG_GET_ADDR(parent_pdir[pdir_idx])
                 );
                 
-                // Allocate new PT for child
                 uint64_t *child_pt_phys = (uint64_t *)pmm_alloc_page();
                 if (!child_pt_phys) {
                     continue;
@@ -551,51 +545,24 @@ vmc_t *vmc_fork(vmc_t *parent) {
                         ((uint64_t)pdir_idx << 21) |
                         ((uint64_t)pt_idx << 12);
 
-                    // Skip TLS region - will be allocated fresh for child
-                    if (tls_start && virt >= tls_start && virt < tls_end) {
-                        continue;
-                    }
-
-                    // Skip user stack region - will be allocated fresh for child
                     if (virt >= USER_STACK_TOP - SCHEDULER_STACKSZ && virt < USER_STACK_TOP) {
                         continue;
                     }
 
                     uint64_t phys = PG_GET_ADDR(entry);
 
-                    // Only COW user-writable 4KiB pages
                     if ((entry & PMLE_USER) && (entry & PMLE_WRITE)) {
                         uint64_t cow_entry = (entry & ~PMLE_WRITE) | PMLE_COW;
                         parent_pt[pt_idx] = cow_entry;
                         child_pt[pt_idx]  = cow_entry;
                         pmm_page_ref_inc((void *)phys);
 
-                        if (!(parent_pt[pt_idx] & PMLE_USER)) {
-                            child_pt[pt_idx] = entry; // non-user pages are shared read-only
-                            continue;
-                        }
-
-                        bool in_kernel_vmc = false;
-                        for (vmo_t *v = kernel_vmc->root_vmo; v != NULL; v = v->next) {
-                            if (vmo_overlaps(v, virt, 1)) {
-                                in_kernel_vmc = true;
-                                break;
-                            }
-                        }
-
-                        if (in_kernel_vmc) {
-                            child_pt[pt_idx] = entry;
-                            continue;
-                        }
-
                         _invalidate(virt);
                         if (get_bootloader_data()->smp_enabled) {
                             tlb_shootdown(virt);
                         }
                     } else {
-                        // Read-only or non-user pages: just copy the entry
                         child_pt[pt_idx] = entry;
-                        // Increment refcount for shared physical pages
                         if (entry & PMLE_USER) {
                             pmm_page_ref_inc((void *)phys);
                         }

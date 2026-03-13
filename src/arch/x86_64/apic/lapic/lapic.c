@@ -9,10 +9,10 @@
 #include <pic/pic.h>
 #include <pit/pit.h>
 #include <scheduler/scheduler.h>
+#include <system/time.h>
 #include <tsc/tsc.h>
 
 #include <stdio.h>
-#include <time.h>
 
 uint32_t lapic_timer_ticks_per_ms = 0;
 bool lapic_status                 = false;
@@ -156,9 +156,6 @@ void lapic_timer_init(void) {
 }
 
 void lapic_timer_handler(registers_t *ctx) {
-    UNUSED(ctx);
-    if (get_ticks() >= MAX_LAPIC_TICKS)
-        set_ticks(0);
-
-    set_ticks(get_ticks() + 1);
+    lapic_send_eoi();
+    scheduler_timer_tick(ctx);
 }

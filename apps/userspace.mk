@@ -11,8 +11,6 @@ FASM ?= fasm
 
 USERSPACE_CFLAGS = \
 	--sysroot=$(USERSPACE_SYSROOT) \
-	-fno-stack-protector \
-	-fPIE \
 	-O2 \
 	-g \
 	-Wall \
