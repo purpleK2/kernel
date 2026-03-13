@@ -967,6 +967,21 @@ int sys_poll(void __user *user_fds, size_t nfds, int timeout_ms) {
     return ret;
 }
 
+int sys_getcwd(void __user *buf, size_t size) {
+    if (!buf || size == 0) {
+        return -EINVAL;
+    }
+
+    char kbuf[4096];
+    memcpy(kbuf, "/", sizeof(kbuf));
+
+    if (copy_to_user(buf, kbuf, sizeof(kbuf)) != 0) {
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
