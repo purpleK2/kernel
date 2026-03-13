@@ -62,6 +62,7 @@
 #define SYS_getcwd     53
 #define SYS_futex_wait 54
 #define SYS_futex_wake 55
+#define SYS_chdir      56
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -121,5 +122,6 @@ int sys_poll(void __user *fds, size_t nfds, int timeout_ms);
 int sys_getcwd(void __user *buf, size_t size);
 int sys_futex_wait(int __user* uaddr, int expected, const struct timespec __user *timeout);
 int sys_futex_wake(int __user *uaddr, bool wake_all);
+int sys_chdir(const char __user *path);
 
 #endif // SYSCALL_H

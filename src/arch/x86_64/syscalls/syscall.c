@@ -973,13 +973,81 @@ int sys_getcwd(void __user *buf, size_t size) {
         return -EINVAL;
     }
 
-    char kbuf[4096];
-    memcpy(kbuf, "/", sizeof(kbuf));
-
-    if (copy_to_user(buf, kbuf, sizeof(kbuf)) != 0) {
+    pcb_t *current = get_current_pcb();
+    if (!current) {
         return -EFAULT;
     }
 
+    // No cwd set yet — process is at root
+    if (!current->cwd) {
+        if (size < 2) return -ERANGE;
+        char root[] = "/";
+        if (copy_to_user(buf, root, 2) != 0)
+            return -EFAULT;
+        return 2;
+    }
+
+    vnode_t *vn = (vnode_t *)current->cwd->private;
+    if (!vn) {
+        return -EFAULT;
+    }
+
+    char kbuf[4096];
+    memcpy(kbuf, vn->path, sizeof(kbuf));
+
+    size_t path_len = strlen(kbuf) + 1;
+    if (path_len > size) {
+        return -ERANGE;
+    }
+
+    if (copy_to_user(buf, kbuf, path_len) != 0) {
+        return -EFAULT;
+    }
+
+    return (int)path_len;
+}
+
+int sys_chdir(const char __user *path) {
+    if (!path) {
+        return -EINVAL;
+    }
+
+    char kpath[4096];
+    if (strncpy_from_user(kpath, path, sizeof(kpath)) < 0) {
+        return -EFAULT;
+    }
+    kpath[sizeof(kpath) - 1] = '\0';
+
+    vnode_t *vn;
+    int ret = vfs_lookup(kpath, &vn);
+    if (ret != EOK) {
+        return -ret;
+    }
+
+    if (vn->vtype != VNODE_DIR) {
+        vnode_unref(vn);
+        return -ENOTDIR;
+    }
+
+    pcb_t *current = get_current_pcb();
+    if (!current) {
+        vnode_unref(vn);
+        return -EFAULT;
+    }
+
+    if (current->cwd) {
+        close(current->cwd);
+        current->cwd = NULL;
+    }
+
+    fileio_t *new_cwd = open(kpath, 0, 0);
+    if (!new_cwd) {
+        vnode_unref(vn);
+        return -ENOENT;
+    }
+
+    vnode_unref(vn);
+    current->cwd = new_cwd;
     return 0;
 }
 
@@ -1093,4 +1161,5 @@ void* syscall_table[] = {
     (void*)sys_getcwd,
     (void*)sys_futex_wait,
     (void*)sys_futex_wake,
+    (void*)sys_chdir,
 };
