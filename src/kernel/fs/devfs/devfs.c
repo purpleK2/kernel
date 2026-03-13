@@ -501,6 +501,60 @@ static int devfs_mmap(vnode_t *vnode, void *addr, size_t length, int prot, int f
     return node->device->mmap(node->device, addr, length, prot, flags, offset);
 }
 
+static int devfs_getattr(vnode_t *vnode, struct stat *st) {
+    if (!vnode || !st) {
+        return EFAULT;
+    }
+
+    devfs_node_t *node = vnode->node_data;
+    if (!node) {
+        return ENOENT;
+    }
+
+    st->st_dev = 0;
+    st->st_ino = (uint64_t)node;
+    st->st_nlink = 1;
+    st->st_mode = node->mode;
+    st->st_uid = 0;
+    st->st_gid = 0;
+
+    if (node->device) {
+        st->st_size = 0;
+        st->st_blksize = 512;
+
+        if (node->type == DEVFS_TYPE_BLOCK) {
+            st->st_mode |= S_IFBLK;
+        } else if (node->type == DEVFS_TYPE_CHAR) {
+            st->st_mode |= S_IFCHR;
+        } else {
+            st->st_mode |= S_IFREG;
+        }
+    } else {
+        st->st_size = 0;
+        st->st_blksize = 512;
+        st->st_mode |= S_IFDIR;
+    }
+
+    return EOK;
+}
+
+static int devfs_setattr(vnode_t *vnode, struct stat *st) {
+    if (!vnode || !st) {
+        return EFAULT;
+    }
+
+    devfs_node_t *node = vnode->node_data;
+    if (!node) {
+        return ENOENT;
+    }
+
+    node->mode = st->st_mode;
+    vnode->uid = st->st_uid;
+    vnode->gid = st->st_gid;
+
+    return EOK;
+}
+
 vnops_t devfs_vnops = {
     .open    = devfs_open,
     .close   = devfs_close,
@@ -510,6 +564,8 @@ vnops_t devfs_vnops = {
     .lookup  = devfs_lookup,
     .readdir = devfs_readdir,
     .mmap    = devfs_mmap,
+    .getattr = devfs_getattr,
+    .setattr = devfs_setattr
 };
 
 static int devfs_vfs_mount(vfs_t *vfs, char *path, void *data) {

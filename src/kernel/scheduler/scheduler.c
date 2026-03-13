@@ -491,11 +491,7 @@ int proc_fork(registers_t *regs) {
     child->pid   = __sync_add_and_fetch(&global_pid, 1);
     child->state = PROC_READY;
 
-    if (parent->name) {
-        child->name = strdup(parent->name);
-    } else {
-        child->name = NULL;
-    }
+    child->name = NULL;
 
     child->parent         = parent;
     child->children       = NULL;

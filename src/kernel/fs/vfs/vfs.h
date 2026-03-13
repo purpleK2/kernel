@@ -4,6 +4,7 @@
 #include <fs/file_io.h>
 #include <fs/fsid.h>
 #include "types.h"
+#include <system/sleep.h>
 
 #include <spinlock.h>
 
@@ -79,6 +80,24 @@ typedef struct statfs {
 
 } statfs_t;
 
+typedef struct stat {
+	uint64_t st_dev;
+	uint64_t st_ino;
+	unsigned long st_nlink;
+	mode_t st_mode;
+	uid_t st_uid;
+	gid_t st_gid;
+	unsigned int __pad0;
+	uint64_t st_rdev;
+	off_t st_size;
+	long st_blksize;
+	int64_t st_blocks;
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
+	long __unused[3];
+} stat_t;
+
 typedef struct fid {
     size_t fid_len; /* length of data */
     char *fid_data; /* variable size */
@@ -118,6 +137,8 @@ typedef struct vnode_ops {
     int (*remove)(vnode_t *, const char *);
     int (*symlink)(vnode_t *, const char *, const char *);
     int (*mmap)(vnode_t *, void *, size_t, int, int, size_t);
+    int (*getattr)(vnode_t *, stat_t *);
+    int (*setattr)(vnode_t *, stat_t *);
 } vnops_t;
 
 typedef struct vnode {
@@ -194,5 +215,8 @@ int vfs_remove(const char *path);
 
 int vfs_readlink(const char *path, char *buf, size_t size);
 int vfs_symlink(const char *target, const char *linkpath);
+
+int vfs_stat(const char *path, stat_t *st);
+int vfs_setstat(const char *path, stat_t *st);
 
 #endif

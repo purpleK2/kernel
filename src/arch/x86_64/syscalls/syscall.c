@@ -1104,6 +1104,82 @@ int sys_futex_wake(int __user *uaddr, bool wake_all) {
     return woken;
 }
 
+int sys_stat(const char __user *path, struct stat __user *buf) {
+    char kernel_path[4096];
+    if (strncpy_from_user(kernel_path, path, sizeof(kernel_path)) < 0) {
+        return -EFAULT;
+    }
+    kernel_path[sizeof(kernel_path) - 1] = '\0';
+
+    struct stat kstat;
+    int ret = vfs_stat(kernel_path, &kstat);
+    if (ret != EOK) {
+        return -ret;
+    }
+
+    if (copy_to_user(buf, &kstat, sizeof(struct stat)) != 0) {
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
+int sys_setstat(const char __user *path, const struct stat __user *buf) {
+    char kernel_path[4096];
+    if (strncpy_from_user(kernel_path, path, sizeof(kernel_path)) < 0) {
+        return -EFAULT;
+    }
+    kernel_path[sizeof(kernel_path) - 1] = '\0';
+
+    struct stat kstat;
+    if (copy_from_user(&kstat, buf, sizeof(struct stat)) != 0) {
+        return -EFAULT;
+    }
+
+    int ret = vfs_setstat(kernel_path, &kstat);
+    if (ret != EOK) {
+        return -ret;
+    }
+
+    return 0;
+}
+
+int sys_getfdpath(int fd, char __user *buf, size_t size) {
+    pcb_t *current = get_current_pcb();
+    if (fd < 0) {
+        return -EBADF;
+    }
+
+    fd_entry_t *e = fd_get(&current->fd_table, fd, FD_FILE);
+    if (!e) {
+        return -EBADF;
+    }
+
+    fileio_t *file = e->ptr;
+    if (!file || !file->private) {
+        return -EBADF;
+    }
+
+    vnode_t *vn = (vnode_t *)file->private;
+    if (!vn) {
+        return -EBADF;
+    }
+
+    char kbuf[4096];
+    memcpy(kbuf, vn->path, sizeof(kbuf));
+
+    size_t path_len = strlen(kbuf) + 1;
+    if (path_len > size) {
+        return -ERANGE;
+    }
+
+    if (copy_to_user(buf, kbuf, path_len) != 0) {
+        return -EFAULT;
+    }
+
+    return (int)path_len;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
@@ -1162,4 +1238,7 @@ void* syscall_table[] = {
     (void*)sys_futex_wait,
     (void*)sys_futex_wake,
     (void*)sys_chdir,
+    (void*)sys_stat,
+    (void*)sys_setstat,
+    (void*)sys_getfdpath,
 };

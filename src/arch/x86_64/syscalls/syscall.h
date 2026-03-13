@@ -5,6 +5,7 @@
 #include "types.h"
 #include "uaccess.h"
 #include "system/sleep.h"
+#include "fs/vfs/vfs.h"
 
 #define SYS_exit       0
 #define SYS_open       1
@@ -63,6 +64,9 @@
 #define SYS_futex_wait 54
 #define SYS_futex_wake 55
 #define SYS_chdir      56
+#define SYS_stat       57
+#define SYS_setstat    58
+#define SYS_getfdpath  59
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -123,5 +127,8 @@ int sys_getcwd(void __user *buf, size_t size);
 int sys_futex_wait(int __user* uaddr, int expected, const struct timespec __user *timeout);
 int sys_futex_wake(int __user *uaddr, bool wake_all);
 int sys_chdir(const char __user *path);
+int sys_stat(const char __user *path, struct stat __user *statbuf);
+int sys_setstat(const char __user *path, const struct stat __user *statbuf);
+int sys_getfdpath(int fd, char __user *buf, size_t size);
 
 #endif // SYSCALL_H

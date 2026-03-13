@@ -839,3 +839,43 @@ int vfs_symlink(const char *target, const char *linkpath) {
 
     return ret;
 }
+
+int vfs_stat(const char *path, stat_t *st) {
+    if (!path || !st)
+        return -EINVAL;
+
+    vnode_t *vnode;
+    int ret = vfs_lookup(path, &vnode);
+    if (ret != EOK)
+        return ret;
+
+    if (!vnode->ops || !vnode->ops->getattr) {
+        vnode_unref(vnode);
+        return -ENOSYS;
+    }
+
+    ret = vnode->ops->getattr(vnode, st);
+    vnode_unref(vnode);
+
+    return ret;
+}
+
+int vfs_setstat(const char *path, stat_t *st) {
+    if (!path || !st)
+        return -EINVAL;
+
+    vnode_t *vnode;
+    int ret = vfs_lookup(path, &vnode);
+    if (ret != EOK)
+        return ret;
+
+    if (!vnode->ops || !vnode->ops->setattr) {
+        vnode_unref(vnode);
+        return -ENOSYS;
+    }
+
+    ret = vnode->ops->setattr(vnode, st);
+    vnode_unref(vnode);
+
+    return ret;
+}
