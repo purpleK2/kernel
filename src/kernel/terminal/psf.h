@@ -28,7 +28,7 @@ extern struct limine_framebuffer *framebuffer_b;
 bool psfLoadDefaults();
 bool psfLoad(void *buffer);
 
-void psfPutC(char c, uint32_t x, uint32_t y, uint32_t r, uint32_t g,
-             uint32_t b);
+void psfPutC(char c, uint32_t x, uint32_t y, uint32_t fg_r, uint32_t fg_g,
+             uint32_t fg_b, uint32_t bg_r, uint32_t bg_g, uint32_t bg_b);
 
 #endif // PSF_H

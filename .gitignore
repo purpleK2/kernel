@@ -69,6 +69,7 @@ src/kernel/acpi/uacpi
 
 # sysroot stuff
 sysroot/usr/include
+sysroot/bin/*
 
 # final OS build files
 *.iso

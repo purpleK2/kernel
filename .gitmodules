@@ -18,3 +18,7 @@
 [submodule "libc/mlibc"]
 	path = libc/mlibc
 	url = https://github.com/purpleK2/mlibc.git
+
+[submodule "apps/specseek"]
+	path = apps/specseek
+	url = https://github.com/purpleK2/SpecSeek-pk2.git
