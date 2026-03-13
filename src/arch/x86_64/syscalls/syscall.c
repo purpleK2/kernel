@@ -5,6 +5,7 @@
 #include "ipc/poll.h"
 #include "paging/paging.h"
 #include "scheduler/execve.h"
+#include "structures/futex.h"
 #include "user/user.h"
 #include "uaccess.h"
 
@@ -982,6 +983,59 @@ int sys_getcwd(void __user *buf, size_t size) {
     return 0;
 }
 
+int sys_futex_wait(int __user* uaddr, int expected, const struct timespec __user *timeout) {
+    int val;
+
+    if (copy_from_user(&val, uaddr, sizeof(int)) != 0) {
+        return -EFAULT;
+    }
+
+    if (val != expected) {
+        return -EAGAIN;
+    }
+
+    futex_t *f = futex_get((uintptr_t)uaddr);
+    if (!f) {
+        return -EFAULT;
+    }
+
+    if (timeout) {
+        timespec_t kts;
+        if (copy_from_user(&kts, timeout, sizeof(timespec_t)) != 0) {
+            return -EFAULT;
+        }
+
+        uint64_t ticks = kts.tv_sec * TICKS_PER_SEC;
+        ticks += (uint64_t)kts.tv_nsec / NS_PER_TICK;
+        if (((uint64_t)kts.tv_nsec % NS_PER_TICK) != 0)
+            ticks++;
+
+        if (ticks == 0 && (kts.tv_sec > 0 || kts.tv_nsec > 0))
+            ticks = 1;
+
+        tcb_t *t = get_current_tcb();
+        t->wakeup_tick = get_ticks() + ticks;
+    }
+
+    waitqueue_sleep(&f->wq);
+
+    return 0;
+}
+
+int sys_futex_wake(int __user *uaddr, bool wake_all) {
+    futex_t *f = futex_get((uintptr_t)uaddr);
+
+    int woken = 0;
+
+    if (wake_all) {
+        woken = waitqueue_wake_all(&f->wq);
+    } else {
+        woken = waitqueue_wake_one(&f->wq);
+    }
+
+    return woken;
+}
+
 void* syscall_table[] = {
     (void*)sys_exit,
     (void*)sys_open,
@@ -1035,5 +1089,8 @@ void* syscall_table[] = {
     (void*)sys_setsid,
     (void*)sys_getsid,
     (void*)sys_settls,
-    (void*)sys_poll
+    (void*)sys_poll,
+    (void*)sys_getcwd,
+    (void*)sys_futex_wait,
+    (void*)sys_futex_wake,
 };
