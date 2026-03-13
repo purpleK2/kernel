@@ -7,18 +7,12 @@ C_SRCS = main.c
 
 OBJS = $(C_SRCS:.c=.o)
 
-SYSROOT = $(USERSPACE_SYSROOT)
-LDFLAGS = -static \
-	$(SYSROOT)/usr/lib/Scrt1.o \
-	$(SYSROOT)/usr/lib/crti.o \
-	-lc \
-	$(SYSROOT)/usr/lib/crtn.o \
-	-o $(TARGET)
+LDFLAGS =
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(LD) $(OBJS) $(LDFLAGS)
+	$(USERSPACE_LINK)
 
 clean:
 	rm -f $(OBJS) $(TARGET)

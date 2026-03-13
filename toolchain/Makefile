@@ -22,6 +22,7 @@ SYSROOT_DIR = $(abspath ../sysroot)
 
 USERSPACE_BINUTILS_BUILD = binutils-build-userspace-$(BINUTILS_VERSION)
 USERSPACE_GCC_BUILD = gcc-build-userspace-$(GCC_VERSION)
+USERSPACE_GCC_SPECS = $(USERSPACE_TOOLCHAIN_PREFIX)/lib/gcc/$(USERSPACE_TARGET)/$(GCC_VERSION)/purplek2-libc.specs
 
 export PATH := $(KERNEL_TOOLCHAIN_PREFIX)/bin:$(USERSPACE_TOOLCHAIN_PREFIX)/bin:$(PATH)
 
@@ -161,6 +162,26 @@ $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc: $(USERSPACE_TOOLCHAIN
 	$(MAKE) -j$(CPU_CORES) -C $(USERSPACE_GCC_BUILD) all-gcc
 	$(MAKE) -j$(CPU_CORES) -C $(USERSPACE_GCC_BUILD) all-target-libgcc CFLAGS_FOR_TARGET="-O2 -mcmodel=large -mno-red-zone -fno-stack-protector -fno-exceptions"
 	$(MAKE) -C $(USERSPACE_GCC_BUILD) install-gcc install-target-libgcc
+	@echo "=== Installing userspace GCC specs wrapper ==="
+	mkdir -p $(dir $(USERSPACE_GCC_SPECS))
+	printf '%s\n' \
+		'*startfile:' \
+		'%{!shared:%{!symbolic:crt0.o%s}} crti.o%s' \
+		'' \
+		'*endfile:' \
+		'crtn.o%s' \
+		'' \
+		'*lib:' \
+		'%{!shared:%{!symbolic:-lc}}' \
+		> $(USERSPACE_GCC_SPECS)
+	@if [ -f $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc ] && [ ! -f $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real ]; then \
+		mv $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real; \
+	fi
+	printf '%s\n' \
+		'#!/usr/bin/env sh' \
+		'exec "$(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real" -specs="$(USERSPACE_GCC_SPECS)" "$$@"' \
+		> $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc
+	chmod +x $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc
 
 .PHONY: userspace-toolchain-gcc-full userspace-toolchain-libstdcxx
 
@@ -188,6 +209,26 @@ userspace-toolchain-gcc-full:
 			--enable-host-shared 
 	$(MAKE) -j$(CPU_CORES) -C $(USERSPACE_GCC_BUILD) all-gcc all-target-libgcc
 	$(MAKE) -C $(USERSPACE_GCC_BUILD) install-gcc install-target-libgcc
+	@echo "=== Installing userspace GCC specs wrapper ==="
+	mkdir -p $(dir $(USERSPACE_GCC_SPECS))
+	printf '%s\n' \
+		'*startfile:' \
+		'%{!shared:%{!symbolic:crt0.o%s}} crti.o%s' \
+		'' \
+		'*endfile:' \
+		'crtn.o%s' \
+		'' \
+		'*lib:' \
+		'%{!shared:%{!symbolic:-lc}}' \
+		> $(USERSPACE_GCC_SPECS)
+	@if [ -f $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc ] && [ ! -f $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real ]; then \
+		mv $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real; \
+	fi
+	printf '%s\n' \
+		'#!/usr/bin/env sh' \
+		'exec "$(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc.real" -specs="$(USERSPACE_GCC_SPECS)" "$$@"' \
+		> $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc
+	chmod +x $(USERSPACE_TOOLCHAIN_PREFIX)/bin/$(USERSPACE_TARGET)-gcc
 	@echo "=== Full GCC rebuild complete ==="
 
 userspace-toolchain-libstdcxx:

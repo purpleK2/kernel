@@ -31,11 +31,7 @@ USERSPACE_CFLAGS_BOOTSTRAP = \
 
 USERSPACE_LDFLAGS = \
 	--sysroot=$(USERSPACE_SYSROOT) \
-	-static \
-	$(USERSPACE_SYSROOT)/usr/lib/Scrt1.o \
-	$(USERSPACE_SYSROOT)/usr/lib/crti.o \
-	-lc \
-	$(USERSPACE_SYSROOT)/usr/lib/crtn.o
+	-static
 
 USERSPACE_LDFLAGS_BOOTSTRAP = \
 	-nostdlib \
@@ -47,9 +43,11 @@ MLIBC_INSTALLED := $(shell test -f $(USERSPACE_SYSROOT)/usr/include/stdio.h && e
 ifeq ($(MLIBC_INSTALLED),yes)
     CFLAGS ?= $(USERSPACE_CFLAGS)
     LDFLAGS_BASE ?= $(USERSPACE_LDFLAGS)
+	USERSPACE_LINK ?= $(CC) $(OBJS) $(LDFLAGS_BASE) $(LDFLAGS) -o $(TARGET)
 else
     CFLAGS ?= $(USERSPACE_CFLAGS_BOOTSTRAP)
     LDFLAGS_BASE ?= $(USERSPACE_LDFLAGS_BOOTSTRAP)
+	USERSPACE_LINK ?= $(LD) $(OBJS) $(LDFLAGS_BASE) $(LDFLAGS) -o $(TARGET)
 endif
 
 %.o: %.c
