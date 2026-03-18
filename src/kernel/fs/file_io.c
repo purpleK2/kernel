@@ -1,4 +1,5 @@
 #include "file_io.h"
+#include "cpu.h"
 #include "ipc/pipe.h"
 #include "scheduler/scheduler.h"
 #include "user/access.h"
@@ -7,6 +8,7 @@
 
 #include <memory/heap/kheap.h>
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -38,7 +40,7 @@ fileio_t *open(const char *path, int flags, mode_t mode) {
     if (flags & O_CREATE) {
         int ret = vfs_create(path, mode);
         if (ret != 0) {
-            return (fileio_t *)-ret; // most hackey thing ever ffs
+            return NULL; // most hackey thing ever ffs
         } else {
             open(path, flags & ~O_CREATE, mode); // technically mode is ignored but still :^)
         }
@@ -46,7 +48,7 @@ fileio_t *open(const char *path, int flags, mode_t mode) {
 
     int ret = vfs_open(path, f2vflags(flags), &f);
     if (ret != 0) {
-        return (fileio_t *)-ret; // most hackey thing ever ffs
+        return NULL; // most hackey thing ever ffs
     }
 
     f->offset = 0;
@@ -80,7 +82,7 @@ size_t read(fileio_t *file, size_t size, void *out) {
     size_t offset = file->offset;
     int ret = ((vnode_t *)file->private)->ops->read(
         ((vnode_t *)file->private), &bytes, &offset, out);
-    
+
     if (ret != 0) {
         return 0;
     }
@@ -198,7 +200,7 @@ static const char *vtype_to_str(vnode_type_t type) {
 
 const char *file_type_char(mode_t mode) {
     mode_t type = mode & S_IFMT;  // S_IFMT masks the file type bits
-    
+
     if (type == S_IFREG)  return "-";
     if (type == S_IFDIR)  return "d";
     if (type == S_IFLNK)  return "l";
