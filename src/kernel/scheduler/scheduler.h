@@ -17,7 +17,7 @@
 // **T**ime **S**lice, not that "ts"
 #define SCHEDULER_THREAD_TS 10
 
-#define SCHEDULER_STACK_PAGES 2
+#define SCHEDULER_STACK_PAGES 10
 // keeping this just in case
 #define SCHEDULER_STACKSZ (PFRAME_SIZE * SCHEDULER_STACK_PAGES)
 

@@ -16,10 +16,12 @@ typedef struct winsize {
 #define	TIOCGPGRP 119
 #define	TIOCSPGRP 118
 
-#define	TIOCGWINSZ 104
+#define	TIOCGWINSZ 0x5413
 #define	TIOCSWINSZ 103
 
 #define	TIOCSCTTY  0x540E
 #define	TIOCNOTTY  0x5422
+
+#define IOCTLTTYIS 0x8002
 
 #endif // WINSIZE_H

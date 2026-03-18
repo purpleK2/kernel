@@ -104,8 +104,10 @@ int write(fileio_t *file, void *buf, size_t size) {
         offset += file->size;
     }
 
-    if (vfs_write(vn, buf, size, offset) != 0) {
-        return -EIO;
+    int ret = vfs_write(vn, buf, size, offset);
+
+    if (ret < 0) {
+        return -ret;
     }
 
     if (file->size < size) {
@@ -113,10 +115,14 @@ int write(fileio_t *file, void *buf, size_t size) {
     }
 
     file->offset += size;
-    return EOK;
+    return ret;
 }
 
 int close(fileio_t *file) {
+    if (!file) {
+        return -EINVAL;
+    }
+
     vnode_t *vn = file->private;
 
     if (file->flags & PIPE_READ_END || file->flags & PIPE_WRITE_END) {

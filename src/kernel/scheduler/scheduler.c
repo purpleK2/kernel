@@ -62,34 +62,49 @@ atomic_flag SCHEDULER_LOCK = ATOMIC_FLAG_INIT;
 static void cleanup_dead_thread(tcb_t *thread) {
     if (!thread || !thread->parent) return;
 
-    int pid = thread->parent->pid;
-    int tid = thread->tid;
     void *kernel_stack = thread->kernel_stack;
-    void *user_stack   = thread->user_stack;
     void *fpu          = thread->fpu;
     registers_t *regs  = thread->regs;
-    pcb_t *parent_proc  = thread->parent;
+    pcb_t *parent_proc = thread->parent;
     int is_user_mode = thread->flags & TF_MODE_USER;
 
     if (is_user_mode) {
         free_tls(thread);
     }
 
-    if (parent_proc->state == PROC_DEAD) {
-        pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
-        kfree(fpu);
-        kfree(regs);
-        kfree(parent_proc->threads);
-        kfree(parent_proc->name);
-        kfree(parent_proc);
-    } else {
-        pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
-        /* See comment above: leave user_stack pages managed by the VMM. */
-        kfree(fpu);
-        kfree(regs);
+    pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
+    kfree(fpu);
+    kfree(regs);
+
+    for (int i = 0; i < parent_proc->thread_count; i++) {
+        if (parent_proc->threads[i] == thread) {
+            for (int j = i; j < parent_proc->thread_count - 1; j++) {
+                parent_proc->threads[j] = parent_proc->threads[j + 1];
+            }
+            parent_proc->thread_count--;
+            break;
+        }
     }
 
-    debugf_debug("Cleaned up thread TID=%d, PID=%d\n", tid, pid);
+    kfree(thread);
+
+    if (parent_proc->state == PROC_DEAD && parent_proc->thread_count == 0) {
+        if (parent_proc->fd_table.entries) {
+            for (size_t i = 0; i < parent_proc->fd_table.size; i++) {
+                fd_entry_t *fe = &parent_proc->fd_table.entries[i];
+                if (fe->type == FD_FILE && fe->ptr) {
+                    kfree(fe->ptr);
+                }
+            }
+            kfree(parent_proc->fd_table.entries);
+        }
+        
+        if (parent_proc->name) kfree(parent_proc->name);
+        if (parent_proc->cred) kfree(parent_proc->cred);
+        if (parent_proc->children) kfree(parent_proc->children);
+        kfree(parent_proc->threads);
+        kfree(parent_proc);
+    }
 }
 
 // SHOULD BE CALLED **ONLY ONCE** IN KSTART. NOWHERE ELSE.
@@ -476,11 +491,7 @@ int proc_fork(registers_t *regs) {
     child->pid   = __sync_add_and_fetch(&global_pid, 1);
     child->state = PROC_READY;
 
-    if (parent->name) {
-        child->name = strdup(parent->name);
-    } else {
-        child->name = NULL;
-    }
+    child->name = NULL;
 
     child->parent         = parent;
     child->children       = NULL;
@@ -582,17 +593,7 @@ int proc_fork(registers_t *regs) {
         return -ENOMEM;
     }
     memcpy(child_regs, regs, sizeof(registers_t));
-    child_regs->rax = 0; // fork() returns 0 in the child
-
-#ifdef CONFIG_SCHED_DEBUG
-    debugf_debug("proc_fork: parent PID=%d RIP=%p RSP=%p -> child PID=%d RIP=%p RSP=%p\n",
-                 parent->pid,
-                 (void *)regs->rip,
-                 (void *)regs->rsp,
-                 child->pid,
-                 (void *)child_regs->rip,
-                 (void *)child_regs->rsp);
-#endif
+    child_regs->rax = 0;
 
     child_thread->regs = child_regs;
 
@@ -631,31 +632,9 @@ int proc_fork(registers_t *regs) {
 
     memcpy(child_thread->user_stack, current->user_stack, SCHEDULER_STACKSZ);
 
-    if (current->tls.size) {
-        if (allocate_tls(child_thread, current->tls.size) != EOK) {
-            debugf_warn("proc_fork: failed to allocate TLS for child TID=%d\n",
-                        child_thread->tid);
-        } else {
-            size_t data_size = 0;
-            if (current->tls.size > sizeof(user_tls_t)) {
-                data_size = current->tls.size - sizeof(user_tls_t);
-            }
-
-            if (data_size > 0 && current->tls.base_phys && child_thread->tls.base_phys) {
-                void *parent_data = (void *)PHYS_TO_VIRTUAL(
-                    (uint64_t)(uintptr_t)current->tls.base_phys
-                );
-                void *child_data = (void *)PHYS_TO_VIRTUAL(
-                    (uint64_t)(uintptr_t)child_thread->tls.base_phys
-                );
-
-                memcpy(child_data, parent_data, data_size);
-            }
-        }
-    } else {
-        memset(&child_thread->tls, 0, sizeof(tls_region_t));
-        child_thread->tls_ptr = NULL;
-    }
+    memcpy(&child_thread->tls, &current->tls, sizeof(tls_region_t));
+    child_thread->tls_ptr = current->tls_ptr;
+    child_thread->tls.base_phys = NULL;
 
     child->main_thread = child_thread;
     child->threads[0]  = child_thread;
@@ -770,24 +749,8 @@ static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
                 waiter->regs->rax = child_pid;
             }
             
-            if (waiter->wait_status_ptr && parent->vmc) {
-                uint64_t *old_pml4 = get_kernel_pml4();
-                uint64_t pml4_phys = VIRT_TO_PHYSICAL((uint64_t)parent->vmc->pml4_table);
-                _load_pml4((uint64_t *)pml4_phys);
-                
-                copy_to_user(waiter->wait_status_ptr, &exit_status, sizeof(int));
-                
-                _load_pml4(old_pml4);
-            }
-            
             spinlock_release(&parent->wait_lock);
             proc_remove_child(parent, child);
-            
-            if (child->name) kfree(child->name);
-            if (child->cred) kfree(child->cred);
-            if (child->fd_table.entries) kfree(child->fd_table.entries);
-            if (child->children) kfree(child->children);
-            kfree(child);
             
             waiter->state = THREAD_READY;
             spinlock_acquire(&SCHEDULER_LOCK);
@@ -842,12 +805,6 @@ int do_waitpid(int pid, int *status_ptr, int options) {
             }
 
             proc_remove_child(current, child);
-
-            if (child->name) kfree(child->name);
-            if (child->cred) kfree(child->cred);
-            if (child->fd_table.entries) kfree(child->fd_table.entries);
-            if (child->children) kfree(child->children);
-            kfree(child);
 
             return child_pid;
         }
@@ -1348,6 +1305,10 @@ void yield(registers_t *ctx) {
         }
     }
 
+    if (next->wait_status_ptr && next->wait_result > 0) {
+        copy_to_user(next->wait_status_ptr, &next->wait_status, sizeof(int));
+        next->wait_status_ptr = NULL;
+    }
 
     fpu_restore(next->fpu);
 

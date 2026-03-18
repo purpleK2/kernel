@@ -841,6 +841,51 @@ int ramfs_symlink(vnode_t *parent, const char *name, const char *target) {
     return EOK;
 }
 
+int ramfs_getattr(vnode_t *vnode, struct stat *st) {
+    if (!vnode || !st) {
+        return EFAULT;
+    }
+
+    ramfs_node_t *ramfs_node = vnode->node_data;
+    if (!ramfs_node) {
+        return EFAULT;
+    }
+
+    st->st_dev = 1;
+    st->st_ino = (uint64_t)ramfs_node;
+    st->st_nlink = 1;
+    st->st_mode = ramfs_node->mode;
+    st->st_uid = vnode->uid;
+    st->st_gid = vnode->gid;
+    st->st_rdev = 0;
+    st->st_size = ramfs_node->size;
+    st->st_blksize = 4096;
+    st->st_blocks = (ramfs_node->size + 4095) / 4096;
+    st->st_atim = st->st_mtim = st->st_ctim = (struct timespec){
+        .tv_sec = 0,
+        .tv_nsec = 0,
+    };
+
+    return EOK;
+}
+
+int ramfs_setattr(vnode_t *vnode, struct stat *st) {
+    if (!vnode || !st) {
+        return EFAULT;
+    }
+
+    ramfs_node_t *ramfs_node = vnode->node_data;
+    if (!ramfs_node) {
+        return EFAULT;
+    }
+
+    ramfs_node->mode = st->st_mode;
+    vnode->uid       = st->st_uid;
+    vnode->gid       = st->st_gid;
+
+    return EOK;
+}
+
 vnops_t ramfs_vnops = {
     .open     = ramfs_open,
     .close    = ramfs_close,
@@ -855,6 +900,8 @@ vnops_t ramfs_vnops = {
     .create   = ramfs_create,
     .remove   = ramfs_remove,
     .symlink  = ramfs_symlink,
+    .getattr  = ramfs_getattr,
+    .setattr  = ramfs_setattr, 
 };
 
 static int ramfs_vfs_mount(vfs_t *vfs, char *path, void *data) {

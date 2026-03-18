@@ -469,8 +469,6 @@ void kstart(void) {
     // smp_init();
     // limine_parsed_data.smp_enabled = true;
 
-    fs_list("/", -1);
-
     pci_scan("/etc/pci.ids");
     kprintf_ok("PCI devices parsing done\n");
     if (pcie_init("/etc/pci.ids") != PCIE_STATUS_OK) {

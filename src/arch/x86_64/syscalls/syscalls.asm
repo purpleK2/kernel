@@ -67,9 +67,9 @@ syscall_handler:
     mov rdi, qword [rbp + 0x58]
     mov rsi, qword [rbp + 0x60]
     mov rdx, qword [rbp + 0x68]
-    mov rcx, qword [rbp + 0x38]
-    mov r8,  qword [rbp + 0x48]
-    mov r9,  qword [rbp + 0x40]
+    mov rcx, qword [rbp + 0x48]
+    mov r8,  qword [rbp + 0x40]
+    mov r9,  qword [rbp + 0x38]
     call r12
 
     mov qword [rbp + 0x80], rax

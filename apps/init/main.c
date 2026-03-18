@@ -233,7 +233,7 @@ static const char filename[] = "/dev/e9";
 
 __thread uint64_t thread_local_var = 67;
 
-static size_t strlen(const char *s) {
+size_t strlen(const char *s) {
     size_t len = 0;
     while (s[len]) len++;
     return len;
@@ -1931,10 +1931,9 @@ void main(uintptr_t *stack_ptr) {
         char *argv[] = { "poll_test.elf", "arg1", "arg2", 0 };
         print(fd, "[child] Executing poll_test.elf with execve...\r\n");
         int64_t exec_ret = (int64_t)syscall3(SYS_EXECVE, (uint64_t)"/bin/poll_test.elf", (uint64_t)argv, 0);
-
-        // Exit with a specific code to test waitpid
-        print(fd, "[child] Exiting with code 9...\r\n");
-        syscall1(SYS_EXIT, 9);
+        print(fd, "[child] execve returned: ");
+        print_int(fd, exec_ret);
+        print(fd, "\r\n");
         return;
     } else {
         print(fd, "[parent] fork() returned child PID=");

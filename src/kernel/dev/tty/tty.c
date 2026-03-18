@@ -83,6 +83,15 @@ static int tty_ioctl(struct device *dev, int request, void *arg) {
     int ret;
     
     switch (request) {
+    case IOCTLTTYIS: {
+        int is_tty = 1;
+        ret = copy_to_user(arg, &is_tty, sizeof(int));
+        if (ret != 0) {
+            return -EFAULT;
+        }
+        return 0;
+    }
+
     case TIOCGETA: {
         struct termios tmp;
         tmp = tty->termios;

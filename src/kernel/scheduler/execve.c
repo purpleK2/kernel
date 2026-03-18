@@ -203,7 +203,7 @@ int sys_execve(const char __user *upath, const char __user *const __user *uargv,
     int real_envc = (envp && envc>0) ? envc : 1;
 
     fileio_t *elf_file = open(kpath, 0, 0);
-    if (!elf_file || (int64_t)(intptr_t)elf_file < 0) {
+    if (!elf_file || (int64_t)(intptr_t)elf_file < 0 || !is_addr_mapped((uintptr_t)elf_file)) {
         free_strarray(argv,argc); free_strarray(envp,envc);
         return -ENOENT;
     }
@@ -358,6 +358,8 @@ int sys_execve(const char __user *upath, const char __user *const __user *uargv,
         thread->deferred_free_kstack = thread->kernel_stack;
         thread->kernel_stack = (void*)(uintptr_t)PHYS_TO_VIRTUAL(kphys);
     }
+    
+    proc->name = strdup(kpath);
 
     vmc_destroy(old_vmc);
     

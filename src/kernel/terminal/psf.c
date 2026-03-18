@@ -35,16 +35,16 @@ bool psfLoadDefaults() {
     return psfLoad(&u_vga16_psf[0]);
 }
 
-void psfPutC(char c, uint32_t x, uint32_t y, uint32_t r, uint32_t g,
-             uint32_t b) {
+void psfPutC(char c, uint32_t x, uint32_t y, uint32_t fg_r, uint32_t fg_g,
+             uint32_t fg_b, uint32_t bg_r, uint32_t bg_g, uint32_t bg_b) {
     uint8_t *targ =
         (uint8_t *)((size_t)psf + sizeof(PSF1Header) + c * psf->height);
     for (int i = 0; i < psf->height; i++) {
         for (int j = 0; j < 8; j++) {
             if (targ[i] & (1 << (8 - j))) // NOT little endian
-                drawPixel(x + j, y + i, r, g, b);
+                drawPixel(x + j, y + i, fg_r, fg_g, fg_b);
             else
-                drawPixel(x + j, y + i, bg_color[0], bg_color[1], bg_color[2]);
+                drawPixel(x + j, y + i, bg_r, bg_g, bg_b);
         }
     }
 }

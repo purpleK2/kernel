@@ -137,19 +137,7 @@ static ssize_t vt_output(tty_t *tty, const char *buf, size_t size) {
         return 0;
     
     for (size_t i = 0; i < size; i++) {
-        char c = buf[i];
-        
-        if (vt->escape_state != VT_STATE_NORMAL) {
-            vt_handle_escape(vt, c);
-            continue;
-        }
-        
-        if (c == '\033') {
-            vt->escape_state = VT_STATE_ESC;
-            continue;
-        }
-        
-        _term_putc(c);
+        _term_putc(buf[i]);
     }
     
     return size;

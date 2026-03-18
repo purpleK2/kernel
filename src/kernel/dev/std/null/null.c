@@ -26,8 +26,7 @@ int dev_null_write(struct device *dev, const void *buffer, size_t size,
     (void)dev;
     (void)offset;
     (void)buffer;
-    (void)size;
-    return 0;
+    return (int)size;
 }
 
 int dev_null_ioctl(struct device *dev, int request, void *arg) {

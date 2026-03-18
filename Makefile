@@ -1,8 +1,22 @@
 ARCH=x86_64
 TARGET_BASE=$(ARCH)
-TARGET=$(TARGET_BASE)-elf
-TOOLCHAIN_PREFIX=$(abspath toolchain/$(TARGET))
-export PATH:=$(TOOLCHAIN_PREFIX)/bin:$(PATH)
+
+KERNEL_TARGET=$(TARGET_BASE)-elf
+KERNEL_TOOLCHAIN_PREFIX=$(abspath toolchain/kernel-toolchain)
+
+USERSPACE_TARGET=$(TARGET_BASE)-purplek2
+USERSPACE_TOOLCHAIN_PREFIX=$(abspath toolchain/userspace-toolchain)
+SYSROOT_DIR=$(abspath sysroot)
+
+TARGET=$(KERNEL_TARGET)
+TOOLCHAIN_PREFIX=$(KERNEL_TOOLCHAIN_PREFIX)
+
+export PATH:=$(KERNEL_TOOLCHAIN_PREFIX)/bin:$(USERSPACE_TOOLCHAIN_PREFIX)/bin:$(PATH)
+
+export USERSPACE_CC=$(USERSPACE_TARGET)-gcc
+export USERSPACE_LD=$(USERSPACE_TARGET)-ld
+export USERSPACE_SYSROOT=$(SYSROOT_DIR)
+export USERSPACE_TARGET
 
 OS_CODENAME=kernel-v0
 
@@ -16,7 +30,7 @@ ISO_DIR=iso
 BUILD_DIR=build
 
 OBJS_DIR=$(BUILD_DIR)/objs
-INITRD_DIR=target
+INITRD_DIR=sysroot
 INITRD=initrd.cpio
 
 KCONFIG_CONFIG = .config
@@ -32,9 +46,8 @@ QEMU_FLAGS = -m 2G \
     		 -debugcon stdio \
     		 -M q35 \
     		 -smp 2 \
-			 -enable-kvm \
-    		 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
-		 	 -device rtl8139,netdev=net0,mac=52:54:00:12:34:56
+			 -enable-kvm  \
+			 -cpu host
 
 QEMU_FLAGS_GDB = -m 2G \
     		 -debugcon file:qemu_gdb.log \
@@ -228,27 +241,27 @@ $(LIBS_DIR)/limine/limine:
 	make -C $(LIBS_DIR)/limine
 
 modules:
-	@mkdir -p target/kmod
+	@mkdir -p $(SYSROOT_DIR)/kmod
 	@for dir in $(MODULE_DIRS); do \
 		echo "--> Building module in $$dir"; \
 		$(MAKE) -C $$dir; \
 		for km in $$dir/*.km; do \
 			if [ -f $$km ]; then \
-				cp -v $$km target/kmod/; \
+				cp -v $$km $(SYSROOT_DIR)/kmod/; \
 			fi; \
 		done; \
 	done
 
 .PHONY: apps
 apps:
-	@mkdir -p target/bin
+	@mkdir -p $(SYSROOT_DIR)/bin
 	@for dir in $(APPS_DIRS); do \
 		echo "--> Building app in $$dir"; \
 		$(MAKE) -C $$dir; \
 		for f in $$dir/*; do \
 			if [ -f "$$f" ] && \
 			   readelf -h "$$f" 2>/dev/null | grep -Eq "Type:[[:space:]]*(EXEC|DYN)"; then \
-				cp -v "$$f" target/bin; \
+				cp -v "$$f" $(SYSROOT_DIR)/bin; \
 			fi; \
 		done; \
 	done
@@ -257,6 +270,26 @@ libs:
 	@./libs/clone_repos.sh libs/
 	@./libs/get_deps.sh src/kernel libs/
 	@$(MAKE) limine_build
+	@git clone --depth 1 https://github.com/purpleK2/mlibc.git libc/mlibc
+
+TOOLCHAIN := $(CURDIR)/toolchain/userspace-toolchain/bin
+
+.PHONY: libc
+libc:
+	cd libc/mlibc && \
+	mkdir -p headers-build && \
+	meson setup --cross-file=../purpleK2-cross.txt --prefix=/usr -Dheaders_only=true \
+		headers-build && \
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 DESTDIR=$(USERSPACE_SYSROOT) meson install -C headers-build && \
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 PATH=$(TOOLCHAIN):$$PATH meson setup \
+		--cross-file=../purpleK2-cross.txt \
+		--prefix=/usr \
+		-Ddefault_library=static \
+		-Dno_headers=true \
+		build && \
+	MLIBC_RTLD_DEBUG=1 MLIBC_RTLD_DEBUG_VERBOSE=1 PATH=$(TOOLCHAIN):$$PATH ninja -C build
+	cp -v libc/mlibc/build/*.a $(USERSPACE_SYSROOT)/usr/lib/
+	cp -v libc/mlibc/build/sysdeps/purpleK2/*.o $(USERSPACE_SYSROOT)/usr/lib/
 
 # Create initrd image
 $(BUILD_DIR)/$(INITRD): modules apps

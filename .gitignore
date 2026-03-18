@@ -59,11 +59,17 @@ iso
 toolchain/binutils*
 toolchain/gcc*
 toolchain/x86_64-elf
+toolchain/kernel-toolchain
+toolchain/userspace-toolchain
 
 # External libraries will be updated and copied from their repos
 src/kernel/system/limine.*
 src/kernel/system/nanoprintf.*
 src/kernel/acpi/uacpi
+
+# sysroot stuff
+sysroot/usr/include
+sysroot/bin/*
 
 # final OS build files
 *.iso
@@ -71,6 +77,7 @@ src/kernel/acpi/uacpi
 
 # Cache and stuff made by LSPs
 *.cache
+libc/mlibc/.cache
 *.ccls-cache
 compile_commands.json
 

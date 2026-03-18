@@ -853,6 +853,36 @@ static int procfs_mmap(vnode_t *vnode, void *addr, size_t length, int prot, int 
     return ENOSYS; // you CANNOT mmap files in procfs, its a fake fs :3c
 }
 
+int procfs_getattr(vnode_t* vnode, struct stat *st) {
+    if (!vnode || !st) {
+        return EFAULT;
+    }
+
+    memset(st, 0, sizeof(struct stat));
+
+    st->st_dev = 0;
+    st->st_ino = 0;
+    st->st_nlink = 1;
+    st->st_mode = vnode->mode;
+    st->st_uid = vnode->uid;
+    st->st_gid = vnode->gid;
+    st->st_rdev = 0;
+    st->st_size = procfs_get_node_size(vnode->node_data);
+    st->st_blksize = 4096;
+    st->st_blocks = (st->st_size + st->st_blksize - 1) / st->st_blksize;
+    st->st_atim = (struct timespec){.tv_nsec = 0, .tv_sec = 0};
+    st->st_mtim = (struct timespec){.tv_nsec = 0, .tv_sec = 0};
+    st->st_ctim = (struct timespec){.tv_nsec = 0, .tv_sec = 0};
+
+    return EOK;
+}
+
+int procfs_setattr(vnode_t* vnode, struct stat *st) {
+    UNUSED(vnode);
+    UNUSED(st);
+    return EACCES;
+}
+
 vnops_t procfs_vnops = {
     .open    = procfs_open,
     .close   = procfs_close,
@@ -863,6 +893,8 @@ vnops_t procfs_vnops = {
     .readdir = procfs_readdir,
     .readlink = procfs_readlink,
     .mmap    = procfs_mmap,
+    .getattr = procfs_getattr,
+    .setattr = procfs_setattr
 };
 
 static int procfs_vfs_mount(vfs_t *vfs, char *path, void *data) {

@@ -2,6 +2,7 @@
 
 #include <arch.h>
 #include <cpu.h>
+#include <interrupts/irq.h>
 #include <interrupts/isr.h>
 #include <io.h>
 #include <kernel.h>
@@ -180,6 +181,16 @@ void uacpi_kernel_vlog(uacpi_log_level log_level, const uacpi_char *fmt,
     uacpi_kernel_log(log_level, "%s", buffer);
 }
 #endif
+
+uacpi_interrupt_state uacpi_kernel_disable_interrupts(void) {
+    uacpi_interrupt_state state = (uacpi_interrupt_state)_get_cpu_flags();
+    _disable_interrupts();
+    return state;
+}
+
+void uacpi_kernel_restore_interrupts(uacpi_interrupt_state state) {
+    _set_cpu_flags((uint64_t)state);
+}
 
 #ifndef UACPI_BAREBONES_MODE
 

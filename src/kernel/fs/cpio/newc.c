@@ -72,26 +72,18 @@ static int cpio_reader_next(cpio_reader_t *reader, cpio_file_t *file) {
         return -1;
     }
 
-    char *filename = kmalloc(file->namesize);
-    if (!filename) {
-        debugf_warn("cpio: Memory allocation failed for filename\n");
-        return -1;
-    }
-
-    memcpy(filename, reader->pos, file->namesize);
+    char *filename = (char *)reader->pos;
     reader->pos += file->namesize;
     reader->pos  = (uint8_t *)align4((uintptr_t)reader->pos);
 
     if (filename[file->namesize - 1] != '\0') {
         debugf_warn("cpio: Filename not null-terminated\n");
-        kfree(filename);
         return -1;
     }
 
     // Check for end-of-archive marker
     if (strcmp(filename, "TRAILER!!!") == 0) {
         debugf_debug("cpio: End of archive marker found\n");
-        kfree(filename);
         return 1;
     }
 
@@ -102,13 +94,7 @@ static int cpio_reader_next(cpio_reader_t *reader, cpio_file_t *file) {
         return -1;
     }
 
-    file->data = kmalloc(file->filesize);
-    if (!file->data) {
-        debugf_warn("cpio: Memory allocation failed for file data\n");
-        return -1;
-    }
-
-    memcpy(file->data, reader->pos, file->filesize);
+    file->data = reader->pos;
     reader->pos += file->filesize;
     reader->pos  = (uint8_t *)align4((uintptr_t)reader->pos);
 
@@ -183,10 +169,6 @@ cpio_file_t *cpio_fs_get_file(cpio_t *fs, const char *filename) {
 }
 
 void cpio_fs_free(cpio_t *fs) {
-    for (size_t i = 0; i < fs->file_count; ++i) {
-        kfree(fs->files[i].filename);
-        kfree(fs->files[i].data);
-    }
     kfree(fs->files);
     fs->files      = NULL;
     fs->file_count = 0;

@@ -356,10 +356,12 @@ int load_elf(const char *path, const char **argv, const char **envp, binfmt_prog
 
     if (pid == 1) {
         fileio_t *console = open("/dev/console", 0, 0);
+        fileio_t *e9 = open("/dev/e9", 0, 0);
         if (console && (int64_t)console > 0) {
             fd_alloc(&proc->fd_table, FD_FILE, console);
             fd_alloc(&proc->fd_table, FD_FILE, console);
             fd_alloc(&proc->fd_table, FD_FILE, console);
+            fd_alloc(&proc->fd_table, FD_FILE, e9);
             
             vnode_t *console_vnode = (vnode_t *)console->private;
             if (console_vnode && console_vnode->node_data) {
@@ -456,6 +458,8 @@ int load_elf(const char *path, const char **argv, const char **envp, binfmt_prog
     Elf64_Rela *rela      = NULL;
     uint64_t    rela_sz   = 0;
     uint64_t    rela_ent  = sizeof(Elf64_Rela);
+    Elf64_Sym  *symtab    = NULL;
+    char       *strtab    = NULL;
 
     if (dynamic_vaddr) {
         Elf64_Dyn *dyn = (Elf64_Dyn *)dynamic_vaddr;
@@ -471,11 +475,19 @@ int load_elf(const char *path, const char **argv, const char **envp, binfmt_prog
             case DT_RELAENT:
                 rela_ent = dyn->d_un.d_val;
                 break;
+            case DT_SYMTAB:
+                symtab = (Elf64_Sym *)(dyn->d_un.d_ptr + load_bias);
+                break;
+            case DT_STRTAB:
+                strtab = (char *)(dyn->d_un.d_ptr + load_bias);
+                break;
             default:
                 break;
             }
         }
     }
+
+    (void)strtab;
 
     if (rela && rela_sz) {
         size_t count = rela_sz / rela_ent;
@@ -487,11 +499,25 @@ int load_elf(const char *path, const char **argv, const char **envp, binfmt_prog
             uint64_t *reloc_vaddr = (uint64_t *)(r->r_offset + load_bias);
             uint64_t phys_addr = pg_virtual_to_phys(pml4, (uint64_t)(uintptr_t)reloc_vaddr);
             uint64_t *reloc_addr = (uint64_t *)PHYS_TO_VIRTUAL(phys_addr);
-            *reloc_addr = load_bias + r->r_addend;
+
+            uint64_t sym_idx = ELF64_R_SYM(r->r_info);
+            uint64_t sym_val = 0;
+
+            if (sym_idx != 0 && symtab) {
+                Elf64_Sym *sym = &symtab[sym_idx];
+                sym_val = sym->st_value + load_bias;
+            }
 
             switch (ELF64_R_TYPE(r->r_info)) {
             case R_X86_64_RELATIVE:
                 *reloc_addr = load_bias + r->r_addend;
+                break;
+            case R_X86_64_GLOB_DAT:
+            case R_X86_64_JUMP_SLOT:
+                *reloc_addr = sym_val;
+                break;
+            case R_X86_64_64:
+                *reloc_addr = sym_val + r->r_addend;
                 break;
             default:
                 debugf_warn("Unsupported relocation type %llu at index %llu\n",
