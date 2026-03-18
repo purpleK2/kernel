@@ -240,6 +240,8 @@ static void fs_list_internal(vnode_t *dir, int depth, int max_depth,
     dirent_t entries[256];
     size_t count = 256;
 
+    char mode_buf[11];
+
     int ret = vfs_readdir(dir, entries, &count);
     if (ret != EOK) {
         return;
@@ -250,52 +252,49 @@ static void fs_list_internal(vnode_t *dir, int depth, int max_depth,
             kprintf("  ");
         }
 
-        if (entries[i].d_type == DT_DIR) {
-            char mode_buf[11];
-            char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
-            snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
-            fileio_t *f = open(path_buf, 0, 0);
-            vnode_t *vnode = (vnode_t*)f->private;
-            mode_to_string(vnode->mode, mode_buf);
-            close(f);
-            kfree(path_buf);
-            kprintf("|- [%s] %s/\n", mode_buf, entries[i].d_name); // TODO: idk how to make it work on dirs rn
-        } else if (entries[i].d_type == DT_LNK) {
-            char mode_buf[11];
-            char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
-            snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
-            fileio_t *f = open(path_buf, 0, 0);
-            vnode_t *vnode = (vnode_t*)f->private;
-            mode_to_string(vnode->mode, mode_buf);
-            close(f);
-            kfree(path_buf);
+        char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
+        snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
 
-            size_t path_len = strlen(dir->path) + strlen(entries[i].d_name) + 2;
-            char *full_path = kmalloc(path_len);
-            snprintf(full_path, path_len, "%s/%s", dir->path,
-                     entries[i].d_name);
+        fileio_t *f = open(path_buf, 0, 0);
+        if (!f) {
+            debugf_warn("Can't open file %s!\n", path_buf);
+        }
 
-            char target[256];
-            int ret = vfs_readlink(full_path, target, sizeof(target));
-            if (ret == EOK) {
-                kprintf("|- [%s] %s -> %s\n", mode_buf, entries[i].d_name,
-                        target);
-            } else {
-                kprintf("|- [%s] %s -> ??? (%d)\n", mode_buf, entries[i].d_name,
-                        ret);
-            }
+        vnode_t *vnode = (vnode_t*)f->private;
+        if (!vnode) {
+            debugf_warn("Can't find vnode of file %s!\n", path_buf);
+        }
 
-            kfree(full_path);
-        } else {
-            char mode_buf[11];
-            char *path_buf = kmalloc(strlen(dir->path) + strlen(entries[i].d_name));
-            snprintf(path_buf, strlen(dir->path) + strlen(entries[i].d_name) + 2, "%s/%s", dir->path, entries[i].d_name);
-            fileio_t *f = open(path_buf, 0, 0);
-            vnode_t *vnode = (vnode_t*)f->private;
-            mode_to_string(vnode->mode, mode_buf);
-            close(f);
-            kfree(path_buf);
-            kprintf("|- [%s] %s\n", mode_buf, entries[i].d_name);
+        mode_to_string(vnode->mode, mode_buf);
+        close(f);
+        kfree(path_buf);
+
+        switch (entries[i].d_type) {
+            case DT_DIR:
+                kprintf("|- [%s] %s/\n", mode_buf, entries[i].d_name);
+                break;
+            case DT_LNK:
+                size_t path_len = strlen(dir->path) + strlen(entries[i].d_name) + 2;
+                char *full_path = kmalloc(path_len);
+                snprintf(full_path, path_len, "%s/%s", dir->path,
+                        entries[i].d_name);
+
+                char target[256];
+                int ret = vfs_readlink(full_path, target, sizeof(target));
+                if (ret == EOK) {
+                    kprintf("|- [%s] %s -> %s\n", mode_buf, entries[i].d_name,
+                            target);
+                } else {
+                    kprintf("|- [%s] %s -> ??? (%d)\n", mode_buf, entries[i].d_name,
+                            ret);
+                }
+
+                kfree(full_path);
+
+                break;
+            default:
+                kprintf("|- [%s] %s\n", mode_buf, entries[i].d_name);
+                break;
         }
 
         if (entries[i].d_type == DT_DIR) {
