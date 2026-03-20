@@ -72,9 +72,12 @@ static void cleanup_dead_thread(tcb_t *thread) {
         free_tls(thread);
     }
 
-    pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
-    kfree(fpu);
-    kfree(regs);
+    if (kernel_stack)
+        pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
+    if (fpu)
+        kfree(fpu);
+    if (regs)
+        kfree(regs);
 
     for (int i = 0; i < parent_proc->thread_count; i++) {
         if (parent_proc->threads[i] == thread) {
@@ -88,7 +91,10 @@ static void cleanup_dead_thread(tcb_t *thread) {
 
     kfree(thread);
 
-    if (parent_proc->state == PROC_DEAD && parent_proc->thread_count == 0) {
+    if (parent_proc->state == PROC_DEAD &&
+        parent_proc->thread_count == 0 &&
+        parent_proc->exited == 0) {
+
         if (parent_proc->fd_table.entries) {
             for (size_t i = 0; i < parent_proc->fd_table.size; i++) {
                 fd_entry_t *fe = &parent_proc->fd_table.entries[i];
@@ -99,10 +105,10 @@ static void cleanup_dead_thread(tcb_t *thread) {
             kfree(parent_proc->fd_table.entries);
         }
         
-        if (parent_proc->name) kfree(parent_proc->name);
-        if (parent_proc->cred) kfree(parent_proc->cred);
+        if (parent_proc->name)     kfree(parent_proc->name);
+        if (parent_proc->cred)     kfree(parent_proc->cred);
         if (parent_proc->children) kfree(parent_proc->children);
-        kfree(parent_proc->threads);
+        if (parent_proc->threads)  kfree(parent_proc->threads);
         kfree(parent_proc);
     }
 }
@@ -208,6 +214,25 @@ static tcb_t *pick_next_thread(int cpu) {
                 
                 return thread;
             }
+
+            if (thread->state == THREAD_DEAD) {
+                tcb_t *dead = thread;
+
+                if (prev)
+                    prev->next = dead->next;
+                else
+                    queue->head = dead->next;
+
+                if (dead == queue->tail)
+                    queue->tail = prev;
+
+                queue->count--;
+                thread = dead->next;
+                dead->next = NULL;
+                cleanup_dead_thread(dead);
+                continue;
+            }
+
             prev = thread;
             thread = thread->next;
         }
@@ -580,7 +605,7 @@ int proc_fork(registers_t *regs) {
         kfree(child);
         return -ENOMEM;
     }
-    memset(child_thread->fpu, 0, PFRAME_SIZE);
+    memcpy(child_thread->fpu, current->fpu, PFRAME_SIZE);
 
     registers_t *child_regs = kmalloc(sizeof(registers_t));
     if (!child_regs) {
@@ -621,6 +646,13 @@ int proc_fork(registers_t *regs) {
 
     if (!child_thread->user_stack) {
         debugf_warn("proc_fork: valloc_at failed for child user stack!\n");
+        kfree(child_regs);
+        kfree(child_thread->fpu);
+        kfree(child_thread);
+        kfree(child->threads);
+        kfree(child->cred);
+        kfree(child->fd_table.entries);
+        kfree(child);
         return -ENOMEM;
     }
 
@@ -746,10 +778,12 @@ static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
             waiter->wait_status = exit_status;
             
             if (waiter->regs) {
-                waiter->regs->rax = child_pid;
+                waiter->regs->rax = (uint64_t)(int64_t)child_pid;
             }
             
             spinlock_release(&parent->wait_lock);
+
+            child->exited = 0;
             proc_remove_child(parent, child);
             
             waiter->state = THREAD_READY;
@@ -804,6 +838,7 @@ int do_waitpid(int pid, int *status_ptr, int options) {
                 copy_to_user(status_ptr, &exit_status, sizeof(int));
             }
 
+            child->exited = 0;
             proc_remove_child(current, child);
 
             return child_pid;
@@ -944,24 +979,15 @@ tcb_t *get_current_tcb() {
 }
 
 pcb_t *pcb_lookup(int pid) {
-    int cpu = get_cpu();
-    
-    tcb_t *current = current_threads[cpu];
-    if (current && current->parent && current->parent->pid == pid) {
-        return current->parent;
-    }
-    
-    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES; priority++) {
-        tcb_t *t = thread_queues[cpu].queues[priority].head;
-        
-        for (; t != NULL; t = t->next) {
-            pcb_t *p = t->parent;
-            if (!p) {
-                continue;
-            }
+    for (int c = 0; c < cpu_count; c++) {
+        tcb_t *cur = current_threads[c];
+        if (cur && cur->parent && cur->parent->pid == pid)
+            return cur->parent;
 
-            if (p->pid == pid) {
-                return p;
+        for (int p = 0; p < CONFIG_SCHED_NUM_MLFQ_QUEUES; p++) {
+            for (tcb_t *t = thread_queues[c].queues[p].head; t; t = t->next) {
+                if (t->parent && t->parent->pid == pid)
+                    return t->parent;
             }
         }
     }
@@ -970,28 +996,15 @@ pcb_t *pcb_lookup(int pid) {
 }
 
 tcb_t *tcb_lookup(int pid, int tid) {
-    int cpu = get_cpu();
-    
-    tcb_t *current = current_threads[cpu];
-    if (current && current->parent && current->parent->pid == pid && current->tid == tid) {
-        return current;
-    }
-    
-    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES; priority++) {
-        tcb_t *t = thread_queues[cpu].queues[priority].head;
+    for (int c = 0; c < cpu_count; c++) {
+        tcb_t *cur = current_threads[c];
+        if (cur && cur->parent && cur->parent->pid == pid && cur->tid == tid)
+            return cur;
 
-        for (; t != NULL; t = t->next) {
-            if (!t->parent) {
-                continue;
-            }
-
-            pcb_t *parent = t->parent;
-            if (parent->pid != pid) {
-                continue;
-            }
-
-            if (t->tid == tid) {
-                return t;
+        for (int p = 0; p < CONFIG_SCHED_NUM_MLFQ_QUEUES; p++) {
+            for (tcb_t *t = thread_queues[c].queues[p].head; t; t = t->next) {
+                if (t->parent && t->parent->pid == pid && t->tid == tid)
+                    return t;
             }
         }
     }
@@ -1180,7 +1193,11 @@ int proc_exit(int exit_code) {
         wake_waiter_for_child(proc->parent, proc);
     }
 
-    return EOK;
+    registers_t *ctx = get_syscall_context();
+    if (!ctx) ctx = current->regs;
+
+    yield(ctx);
+    __builtin_unreachable();
 }
 
 int scheduler_enqueue(tcb_t *thread) {
@@ -1197,7 +1214,8 @@ void yield(registers_t *ctx) {
     
     int cpu        = get_cpu();
     tcb_t *current = current_threads[cpu];
-    tcb_t *next;
+    tcb_t *next    = NULL;
+
     _load_pml4(get_kernel_pml4());
 
     if (current && current->deferred_free_kstack) {
@@ -1210,69 +1228,78 @@ void yield(registers_t *ctx) {
         mlfq_boost_all(cpu);
     }
 
-    if (!current) {
-        current = pick_next_thread(cpu);
-    }
+    if (current) {
+        switch (current->state) {
+        case THREAD_RUNNING:
+            if (--current->time_slice > 0) {
+                if (current->parent && current->parent->vmc) {
+                    uint64_t pml4_phys =
+                        VIRT_TO_PHYSICAL((uint64_t)current->parent->vmc->pml4_table);
+                    _load_pml4((uint64_t *)pml4_phys);
+                }
+                __asm__ volatile("sti");
+                return;
+            }
 
-    if (!current || !is_addr_mapped((uint64_t)(uintptr_t)current)) {
-        current_threads[cpu] = NULL;
-        __asm__ volatile("sti");
-        while (!(current = pick_next_thread(cpu))) {
-            __asm__ volatile("hlt");
-        }
-    }
+            fpu_save(current->fpu);
+            current->regs = ctx;
 
-    switch (current->state) {
-    case THREAD_READY:
-        next = current;
-        break;
+            current->state = THREAD_READY;
 
-    case THREAD_RUNNING:
-        if (--current->time_slice > 0) {
-            return;
-        }
-
-        fpu_save(current->fpu);
-        current->regs = ctx;
-
-        current->state = THREAD_READY;
-
-        int new_priority = current->priority + 1;
-        if (new_priority >= CONFIG_SCHED_NUM_MLFQ_QUEUES) {
-            new_priority = CONFIG_SCHED_NUM_MLFQ_QUEUES - 1;
-        }
-        
+            int new_priority = current->priority + 1;
+            if (new_priority >= CONFIG_SCHED_NUM_MLFQ_QUEUES) {
+                new_priority = CONFIG_SCHED_NUM_MLFQ_QUEUES - 1;
+            }
+            
 #ifdef CONFIG_SCHED_DEBUG
-        if (new_priority != current->priority) {
-            debugf_debug("Thread TID=%d demoted from priority %d to %d\n",
-                        current->tid, current->priority, new_priority);
-        }
+            if (new_priority != current->priority) {
+                debugf_debug("Thread TID=%d demoted from priority %d to %d\n",
+                            current->tid, current->priority, new_priority);
+            }
 #endif
 
-        mlfq_enqueue(cpu, current, new_priority);
-        next = pick_next_thread(cpu);
-        break;
+            mlfq_enqueue(cpu, current, new_priority);
+            next = pick_next_thread(cpu);
+            break;
 
-    case THREAD_WAITING:
-        fpu_save(current->fpu);
-        current->regs = ctx;
+        case THREAD_READY:
+            fpu_save(current->fpu);
+            current->regs = ctx;
+            next = pick_next_thread(cpu);
+            break;
 
+        case THREAD_WAITING:
+            fpu_save(current->fpu);
+            current->regs = ctx;
+
+            next = pick_next_thread(cpu);
+            break;
+
+        case THREAD_DEAD:
+            thread_remove_from_queue(current);
+            next = pick_next_thread(cpu);
+            cleanup_dead_thread(current);
+            current = NULL;
+            break;
+
+        default:
+            debugf_warn("yield: CPU %d current thread TID=%d has unknown state %d\n",
+                        cpu, current->tid, (int)current->state);
+            current->state = THREAD_DEAD;
+            next = pick_next_thread(cpu);
+            break;
+        }
+    } else {
         next = pick_next_thread(cpu);
-        break;
-    case THREAD_DEAD:
-        thread_remove_from_queue(current);
-        next = pick_next_thread(cpu);
-        cleanup_dead_thread(current);
-        break;
     }
 
     if (!next) {
         current_threads[cpu] = NULL;
         __asm__ volatile("sti");
-        while (!next) {
+        while (!(next = pick_next_thread(cpu))) {
             __asm__ volatile("hlt");
-            next = pick_next_thread(cpu);
         }
+        __asm__ volatile("cli");
     }
 
     current_threads[cpu] = next;
@@ -1313,4 +1340,5 @@ void yield(registers_t *ctx) {
     fpu_restore(next->fpu);
 
     context_load(next->regs);
+    __builtin_unreachable();
 }

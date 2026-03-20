@@ -1,17 +1,28 @@
 format ELF64
-
-section '.text' executable
+section '.text' executable align 16
 
 public context_load
-
-; void context_load(registers_t *ctx)
 context_load:
+    mov r10, [rdi + 0x98]
+    mov r11, [rdi + 0xA0]
+    mov r12, [rdi + 0xA8]
+    mov r13, [rdi + 0xB0]
+    mov r14, [rdi + 0xB8]
+
     mov r15, [rdi + 0x10]
+
+    push r14                ; ss
+    push r13                ; rsp
+    push r12                ; rflags
+    push r11                ; cs
+    push r10                ; rip
+
     mov r14, [rdi + 0x18]
     mov r13, [rdi + 0x20]
     mov r12, [rdi + 0x28]
     mov r11, [rdi + 0x30]
     mov r10, [rdi + 0x38]
+
     mov r9,  [rdi + 0x40]
     mov r8,  [rdi + 0x48]
     mov rbp, [rdi + 0x50]
@@ -19,41 +30,29 @@ context_load:
     mov rdx, [rdi + 0x68]
     mov rcx, [rdi + 0x70]
     mov rbx, [rdi + 0x78]
-
-    ; Load segment selector (now at +0x08)
-    mov cx, [rdi + 0x08]
-    mov ds, cx
-    mov es, cx
-
-    ; Load rax
     mov rax, [rdi + 0x80]
 
-    ; Reload rcx (now at +0x70)
-    mov rcx, [rdi + 0x70]
+    mov ax, [rdi + 0x08]
+    mov ds, ax
+    mov es, ax
+    mov rax, [rdi + 0x80]
 
-    ; Stack pointer (was 0x90 → now 0x98)
-    lea rsp, [rdi + 0x98]
-
-    ; rdi (was 0x50 → now 0x58)
     mov rdi, [rdi + 0x58]
 
     iretq
 
 public fpu_save
-public fpu_restore
-
-; void fpu_save(registers_t *ctx)
 fpu_save:
     fxsave [rdi]
     ret
 
-; void fpu_restore(registers_t *ctx)
+public fpu_restore
 fpu_restore:
     fxrstor [rdi]
     ret
 
-; void scheduler_idle()
 public scheduler_idle
 scheduler_idle:
+    sti
     hlt
     jmp scheduler_idle
