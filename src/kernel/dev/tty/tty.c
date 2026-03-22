@@ -30,52 +30,74 @@ static int tty_read(struct device *dev, void *buffer, size_t size, size_t offset
 
     if (size == 0) {
         return 0;
-	}
+    }
 
-	if (tty->termios.c_lflag & ICANON) {
-	    while (true) {
-	        spinlock_acquire(&tty->input_buffer_lock);
-	        size_t buf_size = rb_size(&tty->input_buffer);
-	        if (buf_size == 0) {
-	            spinlock_release(&tty->input_buffer_lock);
-	            waitqueue_sleep(&tty->read_queue);
-	            continue;
-	        }
+    if (tty->termios.c_lflag & ICANON) {
+        for (;;) {
+            /*
+             * Prepare to wait BEFORE checking the buffer. This ensures that
+             * if tty_input fires between our check and waitqueue_sleep, the
+             * wake will still be seen (waitqueue_prepare_wait sets state to
+             * THREAD_WAITING while we still hold the logical lock).
+             */
+            waitqueue_prepare_wait(&tty->read_queue);
 
-			size_t to_read = 0;
-			for (; to_read < buf_size && to_read < size; to_read++) {
-	    		char c;
-	    		rb_peek(&tty->input_buffer, to_read, &c);
-	    		if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
-	        		to_read++;
-	       			break;
-	    		}
-			}
+            spinlock_acquire(&tty->input_buffer_lock);
+            size_t buf_size = rb_size(&tty->input_buffer);
 
-			if (to_read > 0) {
-	    		size_t result = rb_read(&tty->input_buffer, buffer, to_read, 0);
-	    		spinlock_release(&tty->input_buffer_lock);
+            if (buf_size == 0) {
+                spinlock_release(&tty->input_buffer_lock);
+                /* Actually sleep — waitqueue_prepare_wait already set state */
+                while (get_current_tcb()->state == THREAD_WAITING) {
+                    __asm__ volatile("sti; hlt" ::: "memory");
+                }
+                continue;
+            }
 
-	    		return result;
-			}
+            size_t to_read = 0;
+            for (; to_read < buf_size && to_read < size; to_read++) {
+                char c;
+                rb_peek(&tty->input_buffer, to_read, &c);
+                if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
+                    to_read++;
+                    break;
+                }
+            }
 
-	        spinlock_release(&tty->input_buffer_lock);
-	    	waitqueue_sleep(&tty->read_queue);
-	    }
-	}
+            if (to_read > 0) {
+                size_t result = rb_read(&tty->input_buffer, buffer, to_read, 0);
+                spinlock_release(&tty->input_buffer_lock);
+                return result;
+            }
 
-	size_t vmin = tty->termios.c_cc[VMIN];
+            spinlock_release(&tty->input_buffer_lock);
+            while (get_current_tcb()->state == THREAD_WAITING) {
+                __asm__ volatile("sti; hlt" ::: "memory");
+            }
+        }
+    }
 
-	spinlock_acquire(&tty->input_buffer_lock);
-	while (rb_size(&tty->input_buffer) < vmin) {
-    	spinlock_release(&tty->input_buffer_lock);
-    	waitqueue_sleep(&tty->read_queue);
-    	spinlock_acquire(&tty->input_buffer_lock);
-	}
+    /* Raw mode: wait for VMIN characters */
+    size_t vmin = tty->termios.c_cc[VMIN];
+    if (vmin == 0) vmin = 1;
 
-	size_t result = rb_read(&tty->input_buffer, buffer, size, 0);
-	spinlock_release(&tty->input_buffer_lock);
-	return result;
+    for (;;) {
+        waitqueue_prepare_wait(&tty->read_queue);
+
+        spinlock_acquire(&tty->input_buffer_lock);
+        size_t avail = rb_size(&tty->input_buffer);
+
+        if (avail >= vmin) {
+            size_t result = rb_read(&tty->input_buffer, buffer, size, 0);
+            spinlock_release(&tty->input_buffer_lock);
+            return result;
+        }
+
+        spinlock_release(&tty->input_buffer_lock);
+        while (get_current_tcb()->state == THREAD_WAITING) {
+            __asm__ volatile("sti; hlt" ::: "memory");
+        }
+    }
 }
 
 static int tty_ioctl(struct device *dev, int request, void *arg) {
@@ -92,6 +114,7 @@ static int tty_ioctl(struct device *dev, int request, void *arg) {
         return 0;
     }
 
+    //case TCGETS:
     case TIOCGETA: {
         struct termios tmp;
         tmp = tty->termios;
@@ -101,7 +124,10 @@ static int tty_ioctl(struct device *dev, int request, void *arg) {
         }
         return 0;
     }
-    
+
+    //case TCSETS:
+    //case TCSETSW:
+    //case TCSETSF:
     case TIOCSETA:
     case TIOCSETAF:
     case TIOCSETAW: {
@@ -229,97 +255,94 @@ int tty_input(tty_t *tty, char c) {
     }
 
     if (tty->termios.c_lflag & ISIG || 1) {
-		if (c == tty->termios.c_cc[VINTR]) {
-			if (tty->fg_pgrp) {
-				// when signals, send sigint
+        if (c == tty->termios.c_cc[VINTR]) {
+            if (tty->fg_pgrp) {
                 debugf_debug("SIGINT\n");
-			}
-		}
-
-		if (c == tty->termios.c_cc[VQUIT]) {
-			if (tty->fg_pgrp) {
-				// when signals, send sigquit
-                debugf_debug("SIGQUIT\n");
-			}
+            }
         }
 
-		if (c == tty->termios.c_cc[VSUSP]) {
-			if (tty->fg_pgrp)  {
-				// when signals, send sigtstp
+        if (c == tty->termios.c_cc[VQUIT]) {
+            if (tty->fg_pgrp) {
+                debugf_debug("SIGQUIT\n");
+            }
+        }
+
+        if (c == tty->termios.c_cc[VSUSP]) {
+            if (tty->fg_pgrp)  {
                 debugf_debug("SIGTSTP\n");
-			}
-		}
-	}
+            }
+        }
+    }
 
     if (tty->termios.c_lflag & ICANON) {
-		if (tty->termios.c_lflag & ECHO) {
-			if (c == tty->termios.c_cc[VERASE] && tty->termios.c_lflag & ECHOE) {
-				if (tty->canon_idx > 0){
-					if (tty->canon_buf[tty->canon_idx -1] && tty->canon_buf[tty->canon_idx -1] <= 31 && tty->canon_buf[tty->canon_idx -1] != '\n'){
-						tty_output(tty, '\b');
-						tty_output(tty, ' ');
-						tty_output(tty, '\b');
-					}
-					tty_output(tty, '\b');
-					tty_output(tty, ' ');
-					tty_output(tty, '\b');
-				}
-			} else if (c && c <= 31 && c != '\n') {
-				tty_output(tty, '^');
-				tty_output(tty, c + 'A' - 1);
-			} else {
-				tty_output(tty, c);
-			}
-		} else if (c == '\n' && (tty->termios.c_lflag & ECHONL)) {
-				tty_output(tty, '\n');
-		}
+        if (tty->termios.c_lflag & ECHO) {
+            if (c == tty->termios.c_cc[VERASE] && tty->termios.c_lflag & ECHOE) {
+                if (tty->canon_idx > 0){
+                    if (tty->canon_buf[tty->canon_idx -1] && tty->canon_buf[tty->canon_idx -1] <= 31 && tty->canon_buf[tty->canon_idx -1] != '\n'){
+                        tty_output(tty, '\b');
+                        tty_output(tty, ' ');
+                        tty_output(tty, '\b');
+                    }
+                    tty_output(tty, '\b');
+                    tty_output(tty, ' ');
+                    tty_output(tty, '\b');
+                }
+            } else if (c && c <= 31 && c != '\n') {
+                tty_output(tty, '^');
+                tty_output(tty, c + 'A' - 1);
+            } else {
+                tty_output(tty, c);
+            }
+        } else if (c == '\n' && (tty->termios.c_lflag & ECHONL)) {
+            tty_output(tty, '\n');
+        }
 
-		if ((tty->termios.c_lflag & IEXTEN)) {
-			if (tty->termios.c_cc[VERASE] == c) {
-				if(tty->canon_idx > 0){
-					tty->canon_idx--;
-				}
-				return 0;
-			}
-			if(tty->termios.c_cc[VKILL] == c){
-				tty->canon_idx = 0;
-				return 0;
-			}
-		}
+        if ((tty->termios.c_lflag & IEXTEN)) {
+            if (tty->termios.c_cc[VERASE] == c) {
+                if(tty->canon_idx > 0){
+                    tty->canon_idx--;
+                }
+                return 0;
+            }
+            if(tty->termios.c_cc[VKILL] == c){
+                tty->canon_idx = 0;
+                return 0;
+            }
+        }
 
-		tty->canon_buf[tty->canon_idx] = c;
-		tty->canon_idx++;
-		if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
-			spinlock_acquire(&tty->input_buffer_lock);
-			size_t written = rb_write(&tty->input_buffer, tty->canon_buf, tty->canon_idx, 0);
-			spinlock_release(&tty->input_buffer_lock);
+        tty->canon_buf[tty->canon_idx] = c;
+        tty->canon_idx++;
+        if (c == '\n' || c == tty->termios.c_cc[VEOL] || c == tty->termios.c_cc[VEOF]) {
+            spinlock_acquire(&tty->input_buffer_lock);
+            size_t written = rb_write(&tty->input_buffer, tty->canon_buf, tty->canon_idx, 0);
+            spinlock_release(&tty->input_buffer_lock);
 
-			if (written < tty->canon_idx && (tty->termios.c_iflag & IMAXBEL)) {
-        		tty_output(tty, '\a');
-			}
+            if (written < tty->canon_idx && (tty->termios.c_iflag & IMAXBEL)) {
+                tty_output(tty, '\a');
+            }
 
-    		waitqueue_wake_all(&tty->read_queue);
+            waitqueue_wake_all(&tty->read_queue);
 
-			tty->canon_idx = 0;
-		}
-		return 0;
-	}
+            tty->canon_idx = 0;
+        }
+        return 0;
+    }
 
-	if (tty->termios.c_lflag & ECHO) {
-		tty_output(tty, c);
-	}
+    if (tty->termios.c_lflag & ECHO) {
+        tty_output(tty, c);
+    }
 
-	spinlock_acquire(&tty->input_buffer_lock);
-	if (rb_write(&tty->input_buffer, &c, 1, 0) == 1) {
-		spinlock_release(&tty->input_buffer_lock);
-    	waitqueue_wake_all(&tty->read_queue);
-	} else {
-		spinlock_release(&tty->input_buffer_lock);
-    	if (tty->termios.c_iflag & IMAXBEL)
-        	tty_output(tty, '\a');
-	}
+    spinlock_acquire(&tty->input_buffer_lock);
+    if (rb_write(&tty->input_buffer, &c, 1, 0) == 1) {
+        spinlock_release(&tty->input_buffer_lock);
+        waitqueue_wake_all(&tty->read_queue);
+    } else {
+        spinlock_release(&tty->input_buffer_lock);
+        if (tty->termios.c_iflag & IMAXBEL)
+            tty_output(tty, '\a');
+    }
 
-	return 0;
+    return 0;
 }
 
 int tty_output(tty_t *tty, char c) {
@@ -367,20 +390,20 @@ tty_t *tty_create(tty_t *tty) {
     }
 
     rb_init(&tty->input_buffer, 4096);
-	tty->input_buffer_lock = (atomic_flag)ATOMIC_FLAG_INIT;
+    tty->input_buffer_lock = (atomic_flag)ATOMIC_FLAG_INIT;
 
     memset(&tty->termios, 0, sizeof(termios_t));
 
-    tty->termios.c_cc[VEOF] = 0x04;
-	tty->termios.c_cc[VERASE] = 127;
-	tty->termios.c_cc[VINTR] = 0x03;
-	tty->termios.c_cc[VQUIT] = 0x22;
-	tty->termios.c_cc[VSUSP] = 0x1A;
-	tty->termios.c_cc[VMIN] = 1;
-	tty->termios.c_iflag = ICRNL | IMAXBEL;
-	tty->termios.c_oflag = OPOST | ONLCR | ONLRET;
-	tty->termios.c_lflag = ECHONL | ECHOK | ECHOE | ECHO | ICANON | IEXTEN | ISIG;
-	tty->termios.c_cflag = CS8;
+    tty->termios.c_cc[VEOF]   = 0x04;
+    tty->termios.c_cc[VERASE] = 127;
+    tty->termios.c_cc[VINTR]  = 0x03;
+    tty->termios.c_cc[VQUIT]  = 0x22;
+    tty->termios.c_cc[VSUSP]  = 0x1A;
+    tty->termios.c_cc[VMIN]   = 1;
+    tty->termios.c_iflag = ICRNL | IMAXBEL;
+    tty->termios.c_oflag = OPOST | ONLCR | ONLRET;
+    tty->termios.c_lflag = ECHONL | ECHOK | ECHOE | ECHO | ICANON | IEXTEN | ISIG;
+    tty->termios.c_cflag = CS8;
 
     tty->canon_buf = kmalloc(512);
     assert(tty->canon_buf);
@@ -394,7 +417,7 @@ tty_t *tty_create(tty_t *tty) {
     tty->device.type = DEVICE_TYPE_CHAR;
     tty->device.data = tty;
 
-    tty->device.read = tty_read;
+    tty->device.read  = tty_read;
     tty->device.write = tty_write;
     tty->device.ioctl = tty_ioctl;
 

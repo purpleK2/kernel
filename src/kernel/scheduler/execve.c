@@ -188,6 +188,8 @@ int sys_execve(const char __user *upath, const char __user *const __user *uargv,
     char kpath[4096];
     if (strncpy_from_user(kpath, upath, sizeof(kpath)) < 0) return -EFAULT;
     kpath[sizeof(kpath)-1] = '\0';
+    debugf_debug("sys_execve: pid=%d path='%s'\n", 
+                 get_current_pcb() ? get_current_pcb()->pid : -1, kpath);
 
     int argc=0, envc=0;
     char **argv = copy_strarray(uargv, &argc);

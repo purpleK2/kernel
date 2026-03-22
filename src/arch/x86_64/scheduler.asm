@@ -3,6 +3,7 @@ section '.text' executable align 16
 
 public context_load
 context_load:
+    sti
     mov r10, [rdi + 0x98]
     mov r11, [rdi + 0xA0]
     mov r12, [rdi + 0xA8]

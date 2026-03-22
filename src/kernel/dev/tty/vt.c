@@ -359,57 +359,73 @@ void vt_create_console(void) {
     debugf_debug("Created console\n");
 }
 
+/*
+ * Get the best available TTY for the current process:
+ *   1. proc->ctty  (explicitly assigned controlling terminal)
+ *   2. active VT   (fallback so processes that never called TIOCSCTTY
+ *                   still get a working terminal — this is what makes
+ *                   the shell work before init sets up a ctty)
+ */
+static tty_t *get_process_tty(void) {
+    pcb_t *proc = get_current_pcb();
+    if (proc && proc->ctty) {
+        return (tty_t *)proc->ctty;
+    }
+
+    if (active_vt > 0 && vts[active_vt] && vts[active_vt]->tty) {
+        return vts[active_vt]->tty;
+    }
+
+    return NULL;
+}
+
 static int ctty_read(struct device *dev, void *buffer, size_t size, size_t offset) {
     (void)dev;
     (void)offset;
-    
-    pcb_t *proc = get_current_pcb();
-    if (!proc || !proc->ctty) {
+
+    tty_t *tty = get_process_tty();
+    if (!tty) {
         return -ENXIO;
     }
-    
-    tty_t *ctty = (tty_t *)proc->ctty;
-    return ctty->device.read(&ctty->device, buffer, size, offset);
+
+    return tty->device.read(&tty->device, buffer, size, offset);
 }
 
 static int ctty_write(struct device *dev, const void *buffer, size_t size, size_t offset) {
     (void)dev;
     (void)offset;
-    
-    pcb_t *proc = get_current_pcb();
-    if (!proc || !proc->ctty) {
+
+    tty_t *tty = get_process_tty();
+    if (!tty) {
         return -ENXIO;
     }
-    
-    tty_t *ctty = (tty_t *)proc->ctty;
-    return ctty->device.write(&ctty->device, buffer, size, offset);
+
+    return tty->device.write(&tty->device, buffer, size, offset);
 }
 
 static int ctty_ioctl(struct device *dev, int request, void *arg) {
     (void)dev;
-    
-    pcb_t *proc = get_current_pcb();
-    if (!proc || !proc->ctty) {
+
+    tty_t *tty = get_process_tty();
+    if (!tty) {
         return -ENXIO;
     }
-    
-    tty_t *ctty = (tty_t *)proc->ctty;
-    return ctty->device.ioctl(&ctty->device, request, arg);
+
+    return tty->device.ioctl(&tty->device, request, arg);
 }
 
 static ssize_t ctty_output(tty_t *tty, const char *buf, size_t size) {
     (void)tty;
-    
-    pcb_t *proc = get_current_pcb();
-    if (!proc || !proc->ctty) {
+
+    tty_t *real_tty = get_process_tty();
+    if (!real_tty) {
         return -ENXIO;
     }
-    
-    tty_t *ctty = (tty_t *)proc->ctty;
-    if (ctty->ops && ctty->ops->out) {
-        return ctty->ops->out(ctty, buf, size);
+
+    if (real_tty->ops && real_tty->ops->out) {
+        return real_tty->ops->out(real_tty, buf, size);
     }
-    
+
     return 0;
 }
 

@@ -37,6 +37,8 @@ registers_t *get_syscall_context(void) {
 void sys_exit(int status) {
     registers_t *ctx = get_syscall_context();
 
+    debugf_debug("sys_exit called with status %d\n", status);
+
     proc_exit(status);
     yield(ctx);
 }
@@ -808,7 +810,8 @@ int sys_nanosleep(const void __user *req, void __user *rem) {
 }
 
 int64_t sys_waitpid(int pid, int __user *status, int options) {
-    return do_waitpid(pid, status, options);
+    int64_t ret = do_waitpid(pid, status, options);
+    return ret;
 }
 
 int64_t sys_wait4(int pid, int __user *status, int options, void __user *rusage) {

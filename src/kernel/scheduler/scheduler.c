@@ -99,7 +99,8 @@ static void cleanup_dead_thread(tcb_t *thread) {
             for (size_t i = 0; i < parent_proc->fd_table.size; i++) {
                 fd_entry_t *fe = &parent_proc->fd_table.entries[i];
                 if (fe->type == FD_FILE && fe->ptr) {
-                    kfree(fe->ptr);
+                    close((fileio_t *)fe->ptr);
+                    fe->ptr = NULL;
                 }
             }
             kfree(parent_proc->fd_table.entries);
@@ -541,6 +542,11 @@ int proc_fork(registers_t *regs) {
                         continue;
                     }
                     memcpy(nf, pf, sizeof(fileio_t));
+                    if (nf->private &&
+                        !(nf->flags & PIPE_READ_END) &&
+                        !(nf->flags & PIPE_WRITE_END)) {
+                        vnode_ref((vnode_t *)nf->private);
+                    }
                     fd_alloc(&child->fd_table, FD_FILE, nf);
                 }
             } else if (pe->type == FD_DIR) {
@@ -782,9 +788,6 @@ static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
             }
             
             spinlock_release(&parent->wait_lock);
-
-            child->exited = 0;
-            proc_remove_child(parent, child);
             
             waiter->state = THREAD_READY;
             spinlock_acquire(&SCHEDULER_LOCK);
@@ -833,13 +836,31 @@ int do_waitpid(int pid, int *status_ptr, int options) {
         if (child->exited) {
             int child_pid = child->pid;
             int exit_status = __W_EXITCODE(child->exit_code, 0);
-            
+
             if (status_ptr) {
                 copy_to_user(status_ptr, &exit_status, sizeof(int));
             }
 
             child->exited = 0;
             proc_remove_child(current, child);
+
+            if (child->state == PROC_DEAD && child->thread_count == 0) {
+                if (child->fd_table.entries) {
+                    for (size_t k = 0; k < child->fd_table.size; k++) {
+                        fd_entry_t *fe = &child->fd_table.entries[k];
+                        if (fe->type == FD_FILE && fe->ptr) {
+                            close((fileio_t *)fe->ptr);
+                            fe->ptr = NULL;
+                        }
+                    }
+                    kfree(child->fd_table.entries);
+                }
+                if (child->name)     kfree(child->name);
+                if (child->cred)     kfree(child->cred);
+                if (child->children) kfree(child->children);
+                if (child->threads)  kfree(child->threads);
+                kfree(child);
+            }
 
             return child_pid;
         }
@@ -857,7 +878,9 @@ int do_waitpid(int pid, int *status_ptr, int options) {
                 break;
             }
         }
-        if (!found) return -ECHILD;
+        if (!found) {
+            return -ECHILD;
+        }
     }
 
     tcb_t *me = get_current_tcb();
@@ -1335,6 +1358,38 @@ void yield(registers_t *ctx) {
     if (next->wait_status_ptr && next->wait_result > 0) {
         copy_to_user(next->wait_status_ptr, &next->wait_status, sizeof(int));
         next->wait_status_ptr = NULL;
+
+        pcb_t *woken_parent = next->parent;
+        int waited_pid = next->wait_result;
+        next->wait_result = 0;
+
+        if (woken_parent) {
+            for (int i = 0; i < woken_parent->children_count; i++) {
+                pcb_t *ch = woken_parent->children[i];
+                if (ch && ch->pid == waited_pid) {
+                    ch->exited = 0;
+                    proc_remove_child(woken_parent, ch);
+                    if (ch->state == PROC_DEAD && ch->thread_count == 0) {
+                        if (ch->fd_table.entries) {
+                            for (size_t k = 0; k < ch->fd_table.size; k++) {
+                                fd_entry_t *fe = &ch->fd_table.entries[k];
+                                if (fe->type == FD_FILE && fe->ptr) {
+                                    close((fileio_t *)fe->ptr);
+                                    fe->ptr = NULL;
+                                }
+                            }
+                            kfree(ch->fd_table.entries);
+                        }
+                        if (ch->name)     kfree(ch->name);
+                        if (ch->cred)     kfree(ch->cred);
+                        if (ch->children) kfree(ch->children);
+                        if (ch->threads)  kfree(ch->threads);
+                        kfree(ch);
+                    }
+                    break;
+                }
+            }
+        }
     }
 
     fpu_restore(next->fpu);
