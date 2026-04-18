@@ -1,8 +1,9 @@
 #include "kernel.h"
+#include "dev/meowdev/meowdev.h"
 #include "dev/tty/tty.h"
 #include "dev/tty/vt.h"
-#include "loader/elf/elfloader.h"
 #include "karg.h"
+#include "loader/elf/elfloader.h"
 #include "pci/pci.h"
 
 #include <autoconf.h>
@@ -103,10 +104,10 @@ USED SECTION(".requests") static volatile struct limine_executable_file_request
     kernel_file_request = {.id       = LIMINE_EXECUTABLE_FILE_REQUEST_ID,
                            .revision = 0};
 
-USED SECTION(".requests") static volatile struct limine_executable_cmdline_request
-    kernel_cmdline_request = {
-        .id       = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID,
-        .revision = 0};
+USED SECTION(
+    ".requests") static volatile struct limine_executable_cmdline_request
+    kernel_cmdline_request = {.id       = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID,
+                              .revision = 0};
 
 USED SECTION(".requests_start_marker") static volatile uint64_t
     limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -181,9 +182,7 @@ void kstart(void) {
             : NULL;
 
     limine_parsed_data.bootstrap_cpu_id =
-        smp_request.response
-            ? smp_request.response->bsp_lapic_id
-            : 0;
+        smp_request.response ? smp_request.response->bsp_lapic_id : 0;
 
     karg_register("init", karg_init_exec, 0);
 
@@ -454,7 +453,8 @@ void kstart(void) {
 
     if (vfs_mount(NULL, "devfs", CONFIG_DEVFS_MOUNT, NULL) == NULL) {
         kprintf_warn("Failed to initialize DEVFS!\n");
-        for (;;);
+        for (;;)
+            ;
     } else {
         kprintf_ok("DEVFS initialized successfully!\n");
     }
@@ -517,6 +517,12 @@ void kstart(void) {
         Which means that every component that processes should access must be
        initialized before this function.
     */
+
+    int meowdev_ret = meowdev_init();
+    if (meowdev_ret != EOK) {
+        debugf_warn("Failed to initialize meowdev root directory (%s): %d\n",
+                    MEOWDEV_ROOT_PATH, meowdev_ret);
+    }
 
     mod_t *ps2 = load_module("/kmod/ps2.km");
     if (!ps2) {
