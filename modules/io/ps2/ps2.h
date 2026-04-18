@@ -2,6 +2,7 @@
 #define PS2_KEYBOARD_H
 
 #include <cpu.h>
+#include <dev/meowdev/meowdev.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -32,5 +33,7 @@ void ps2_keyboard_init(void);
 void ps2_keyboard_handler(registers_t *regs);
 
 void ps2_set_leds(bool scroll, bool num, bool caps);
+
+extern mdev_device_t *ps2_meowdev_keyboard;
 
 #endif // PS2_KEYBOARD_H

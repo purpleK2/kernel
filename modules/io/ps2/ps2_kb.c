@@ -6,27 +6,30 @@
 #include "io.h"
 #include "stdio.h"
 
+#include <string.h>
+
 static kb_modifiers_t modifiers = {0};
 static bool extended            = false;
+static bool key_down[512]       = {0};
 
 // US QWERTY scancode to ASCII table (scancode set 1)
 static const char scancode_to_ascii[128] = {
-    0,   27,  '1',  '2',  '3',  '4', '5', '6',  '7', '8', '9', '0',
-    '-', '=', '\b', '\t', 'q',  'w', 'e', 'r',  't', 'y', 'u', 'i',
-    'o', 'p', '[',  ']',  '\n', 0,   'a', 's',  'd', 'f', 'g', 'h',
-    'j', 'k', 'l',  ';',  '\'', '`', 0,   '\\', 'z', 'x', 'c', 'v',
-    'b', 'n', 'm',  ',',  '.',  '/', 0,   '*',  0,   ' ', 0, // Right shift,
-                                                             // Keypad *, Left
-                                                             // Alt, Space, Caps
-                                                             // Lock
-    0,   0,   0,    0,    0,    0,   0,   0,    0,   0,      // F1-F10
-    0,   0,              // Num Lock, Scroll Lock
-    '7', '8', '9',  '-', // Keypad
-    '4', '5', '6',  '+', // Keypad
-    '1', '2', '3',       // Keypad
-    '0', '.',            // Keypad
-    0,   0,   0,         // 84-86
-    0,   0               // F11, F12
+    0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', 0,
+    'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\', 'z',
+    'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' ',
+    0,                            // Right shift,
+                                  // Keypad *, Left
+                                  // Alt, Space, Caps
+                                  // Lock
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1-F10
+    0, 0,                         // Num Lock, Scroll Lock
+    '7', '8', '9', '-',           // Keypad
+    '4', '5', '6', '+',           // Keypad
+    '1', '2', '3',                // Keypad
+    '0', '.',                     // Keypad
+    0, 0, 0,                      // 84-86
+    0, 0                          // F11, F12
 };
 
 static const char scancode_to_ascii_shift[128] = {
@@ -60,6 +63,8 @@ static const char scancode_to_ascii_shift[128] = {
 #define SC_F10         0x44
 #define SC_NUM_LOCK    0x45
 #define SC_SCROLL_LOCK 0x46
+#define SC_F11         0x57
+#define SC_F12         0x58
 
 static void ps2_send_command(uint8_t cmd) {
     while (_inb(PS2_STATUS_PORT) & 0x02)
@@ -90,6 +95,71 @@ static void handle_vt_switch(int fkey) {
     }
 }
 
+static uint16_t ps2_scancode_to_mdev(uint8_t scancode, bool is_extended) {
+    if (is_extended) {
+        switch (scancode) {
+        case SC_LCTRL:
+            return MDEV_KEY_RIGHTCTRL;
+        case SC_LALT:
+            return MDEV_KEY_RIGHTALT;
+        case 0x47:
+            return MDEV_KEY_HOME;
+        case 0x48:
+            return MDEV_KEY_UP;
+        case 0x49:
+            return MDEV_KEY_PAGEUP;
+        case 0x4B:
+            return MDEV_KEY_LEFT;
+        case 0x4D:
+            return MDEV_KEY_RIGHT;
+        case 0x4F:
+            return MDEV_KEY_END;
+        case 0x50:
+            return MDEV_KEY_DOWN;
+        case 0x51:
+            return MDEV_KEY_PAGEDOWN;
+        case 0x52:
+            return MDEV_KEY_INSERT;
+        case 0x53:
+            return MDEV_KEY_DELETE;
+        default:
+            return 0;
+        }
+    }
+
+    if (scancode <= SC_F12) {
+        return scancode;
+    }
+
+    return 0;
+}
+
+static void ps2_emit_meowdev_key(uint8_t scancode, bool is_extended,
+                                 bool key_released) {
+    if (!ps2_meowdev_keyboard) {
+        return;
+    }
+
+    uint16_t code = ps2_scancode_to_mdev(scancode, is_extended);
+    if (code == 0) {
+        return;
+    }
+
+    size_t state_idx = (size_t)(code & 0x1FF);
+    uint32_t value;
+
+    if (key_released) {
+        key_down[state_idx] = false;
+        value               = 0;
+    } else {
+        value               = key_down[state_idx] ? 2 : 1;
+        key_down[state_idx] = true;
+    }
+
+    mdev_add_event(ps2_meowdev_keyboard, MDEV_EVENT_TYPE_KEY, code,
+                   (int32_t)value);
+}
+
 void ps2_keyboard_handler(registers_t *regs) {
     (void)regs;
 
@@ -105,18 +175,21 @@ void ps2_keyboard_handler(registers_t *regs) {
     scancode          &= 0x7F;
 
     if (scancode == SC_LSHIFT) {
+        ps2_emit_meowdev_key(scancode, extended, key_released);
         modifiers.shift_left = !key_released;
         extended             = false;
         irq_sendEOI(1);
         return;
     }
     if (scancode == SC_RSHIFT) {
+        ps2_emit_meowdev_key(scancode, extended, key_released);
         modifiers.shift_right = !key_released;
         extended              = false;
         irq_sendEOI(1);
         return;
     }
     if (scancode == SC_LCTRL) {
+        ps2_emit_meowdev_key(scancode, extended, key_released);
         if (extended) {
             modifiers.ctrl_right = !key_released;
         } else {
@@ -127,6 +200,7 @@ void ps2_keyboard_handler(registers_t *regs) {
         return;
     }
     if (scancode == SC_LALT) {
+        ps2_emit_meowdev_key(scancode, extended, key_released);
         if (extended) {
             modifiers.alt_right = !key_released;
         } else {
@@ -139,6 +213,7 @@ void ps2_keyboard_handler(registers_t *regs) {
 
     if (!key_released) {
         if (scancode == SC_CAPS_LOCK) {
+            ps2_emit_meowdev_key(scancode, extended, key_released);
             modifiers.caps_lock = !modifiers.caps_lock;
             ps2_set_leds(modifiers.scroll_lock, modifiers.num_lock,
                          modifiers.caps_lock);
@@ -147,6 +222,7 @@ void ps2_keyboard_handler(registers_t *regs) {
             return;
         }
         if (scancode == SC_NUM_LOCK) {
+            ps2_emit_meowdev_key(scancode, extended, key_released);
             modifiers.num_lock = !modifiers.num_lock;
             ps2_set_leds(modifiers.scroll_lock, modifiers.num_lock,
                          modifiers.caps_lock);
@@ -155,6 +231,7 @@ void ps2_keyboard_handler(registers_t *regs) {
             return;
         }
         if (scancode == SC_SCROLL_LOCK) {
+            ps2_emit_meowdev_key(scancode, extended, key_released);
             modifiers.scroll_lock = !modifiers.scroll_lock;
             ps2_set_leds(modifiers.scroll_lock, modifiers.num_lock,
                          modifiers.caps_lock);
@@ -166,6 +243,7 @@ void ps2_keyboard_handler(registers_t *regs) {
 
     if (!key_released && (modifiers.alt_left || modifiers.alt_right)) {
         if (scancode >= SC_F1 && scancode <= SC_F6) {
+            ps2_emit_meowdev_key(scancode, extended, key_released);
             int fkey = scancode - SC_F1 + 1;
             handle_vt_switch(fkey);
             extended = false;
@@ -175,10 +253,13 @@ void ps2_keyboard_handler(registers_t *regs) {
     }
 
     if (key_released) {
+        ps2_emit_meowdev_key(scancode, extended, key_released);
         extended = false;
         irq_sendEOI(1);
         return;
     }
+
+    ps2_emit_meowdev_key(scancode, extended, key_released);
 
     char ascii = 0;
     bool shift = modifiers.shift_left || modifiers.shift_right;
@@ -228,6 +309,7 @@ void ps2_keyboard_init(void) {
     modifiers.num_lock    = false;
     modifiers.scroll_lock = false;
     extended              = false;
+    memset(key_down, 0, sizeof(key_down));
 
     ps2_set_leds(false, false, false);
 
