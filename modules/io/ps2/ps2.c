@@ -1,10 +1,12 @@
 #include <stdio.h>
 
+#include <interrupts/irq.h>
 #include <module/modinfo.h>
 
 #include "ps2.h"
 
 mdev_device_t *ps2_meowdev_keyboard = NULL;
+mdev_device_t *ps2_meowdev_mouse    = NULL;
 
 const modinfo_t modinfo = {
     .name        = "ps2",
@@ -17,6 +19,8 @@ const modinfo_t modinfo = {
     .deps        = {"kernel", NULL}}; // terminated with a \0
 
 void module_exit() {
+    irq_unregisterHandler(1);
+    irq_unregisterHandler(12);
 }
 
 void module_entry() {
@@ -25,5 +29,11 @@ void module_entry() {
         debugf_warn("PS/2: failed to register meowdev keyboard\n");
     }
 
+    ps2_meowdev_mouse = mdev_register_mouse();
+    if (!ps2_meowdev_mouse) {
+        debugf_warn("PS/2: failed to register meowdev mouse\n");
+    }
+
     ps2_keyboard_init();
+    ps2_mouse_init();
 }

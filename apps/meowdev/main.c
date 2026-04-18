@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -76,7 +77,27 @@ static void print_event(const mdev_event_t *ev) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = "/dev/input/kbd0";
+    DIR *dir = opendir("/dev/input");
+
+    if (!dir) {
+        put_str("Failed to open /dev/input, errno=");
+        put_i32(errno);
+        put_str("\n");
+        return 1;
+    }
+
+    // print every input device
+    struct dirent *entry;
+    put_str("Input devices:\n");
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type != DT_CHR) {
+            continue;
+        }
+        put_str(entry->d_name);
+        put_str("\n");
+    }
+
+    const char *path = "/dev/input/mouse0";
     if (argc > 1 && argv[1] && argv[1][0] != '\0') {
         path = argv[1];
     }
@@ -85,7 +106,7 @@ int main(int argc, char **argv) {
     put_str(path);
     put_str("\n");
 
-    int fd = open(path, O_RDONLY);
+    int fd = open(path, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
         put_str("open failed, errno=");
         put_i32(errno);
@@ -104,7 +125,7 @@ int main(int argc, char **argv) {
         put_str("grab acquired\n");
     }
 
-    put_str("waiting for events (Ctrl+C to stop)...\n");
+    put_str("waiting for events (non-blocking, Ctrl+C to stop)...\n");
 
     for (;;) {
         ssize_t n = read(fd, events, sizeof(events));

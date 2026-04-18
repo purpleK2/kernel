@@ -163,6 +163,12 @@ static void ps2_emit_meowdev_key(uint8_t scancode, bool is_extended,
 void ps2_keyboard_handler(registers_t *regs) {
     (void)regs;
 
+    uint8_t status = _inb(PS2_STATUS_PORT);
+    if (!(status & PS2_STATUS_OUTPUT_FULL) || (status & PS2_STATUS_AUX_DATA)) {
+        irq_sendEOI(1);
+        return;
+    }
+
     uint8_t scancode = _inb(PS2_DATA_PORT);
 
     if (scancode == 0xE0) {

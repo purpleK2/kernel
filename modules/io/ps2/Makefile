@@ -15,7 +15,7 @@ CFLAGS = -O0 -g -Wall -Wextra -ffreestanding -fno-builtin \
 LDFLAGS = -r -nostdlib -z norelro
 
 TARGET = ps2.km
-SRC = ps2.c ps2_kb.c
+SRC = ps2.c ps2_kb.c ps2_mouse.c
 OBJ = $(SRC:.c=.o)
 
 .PHONY: all clean
