@@ -32,6 +32,7 @@ isr_common:
     mov bx, 0x10
     mov ds, bx
     mov es, bx
+    mov ss, bx
 
     cmp dword [change_to_kernel_pml4_on_int], 0
     je .no_switch
@@ -50,6 +51,8 @@ isr_common:
     mov bx, bp
     mov ds, bx
     mov es, bx
+    mov bx, 0
+    mov ss, bx ; pray
     
     pop r15
     pop r14
