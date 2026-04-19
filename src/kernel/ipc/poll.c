@@ -1,8 +1,8 @@
 #include "poll.h"
-#include "pipe.h"
 #include "errors.h"
 #include "fs/fd.h"
 #include "fs/file_io.h"
+#include "pipe.h"
 #include "scheduler/scheduler.h"
 #include "structures/waitqueue.h"
 #include "system/time.h"
@@ -22,7 +22,7 @@ static void ensure_poll_wq_init(void) {
 
 static short poll_check_pipe(fileio_t *fio) {
     short revents = 0;
-    pipe_t *p = (pipe_t *)fio->private;
+    pipe_t *p     = (pipe_t *)fio->private;
 
     spinlock_acquire(&p->lock);
 
@@ -94,7 +94,7 @@ int do_poll(pollfd_t *fds, size_t nfds, int timeout_ms) {
         return -EFAULT;
 
     fd_table_t *ft = &current->fd_table;
-    int ready = 0;
+    int ready      = 0;
 
     for (size_t i = 0; i < nfds; i++) {
         fds[i].revents = poll_check_fd(ft, fds[i].fd, fds[i].events);
@@ -113,7 +113,7 @@ int do_poll(pollfd_t *fds, size_t nfds, int timeout_ms) {
     if (!ctx)
         return -EFAULT;
 
-    uint64_t now = get_ticks();
+    uint64_t now    = get_ticks();
     uint64_t target = 0;
     if (timeout_ms > 0) {
         target = now + (uint64_t)timeout_ms;

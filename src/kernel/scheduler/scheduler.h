@@ -27,12 +27,12 @@
 #define TF_DETACHED    (1 << 3)
 #define TF_HAS_FPU     (1 << 4)
 
-#define PF_SETUID_BIT  (1 << 0)
+#define PF_SETUID_BIT (1 << 0)
 
 #define TIME_SLICE_TICKS 10
 
-#define TLS_MIN_SIZE PFRAME_SIZE
-#define TLS_MAX_SIZE (PFRAME_SIZE * CONFIG_SCHED_TLS_MAX_SIZE_PAGES)
+#define TLS_MIN_SIZE  PFRAME_SIZE
+#define TLS_MAX_SIZE  (PFRAME_SIZE * CONFIG_SCHED_TLS_MAX_SIZE_PAGES)
 #define TLS_ALIGNMENT PFRAME_SIZE
 
 #define USER_STACK_TOP 0x7FFFFFFFF000ULL
@@ -97,7 +97,7 @@ typedef struct thread {
     uint64_t wakeup_tick;
 
     struct thread *wq_next;
-    int            on_waitqueue;
+    int on_waitqueue;
 
     int wait_pid;
     int *wait_status_ptr;
@@ -106,6 +106,15 @@ typedef struct thread {
 
     tls_region_t tls;
     user_tls_t *tls_ptr;
+
+    ksigset_t signal_mask;
+    ksigset_t signal_pending;
+    uint16_t signal_pending_count[KSIG_NSIG];
+    ksiginfo_t signal_pending_info[KSIG_NSIG];
+    int signal_waiting;
+    ksigset_t signal_wait_mask;
+    int signal_suspend_active;
+    ksigset_t signal_suspend_old_mask;
 } tcb_t;
 
 typedef struct process {
@@ -134,7 +143,11 @@ typedef struct process {
 
     user_cred_t *cred;
 
-    void (*signal_handler)(int);
+    atomic_flag signal_lock;
+    ksigset_t signal_pending;
+    uint16_t signal_pending_count[KSIG_NSIG];
+    ksiginfo_t signal_pending_info[KSIG_NSIG];
+    ksigaction_t sigactions[KSIG_NSIG];
 
     int exit_code;
     int exited;
@@ -144,7 +157,7 @@ typedef struct process {
     int pgid;
     int sid;
     int is_session_leader;
-    
+
     void *ctty;
 } pcb_t;
 
@@ -161,9 +174,9 @@ typedef struct cpu_local {
 extern cpu_local_t *cpu_locals;
 
 static inline uint64_t choose_random_tls_base(void) {
-    uint64_t min = 0x0000700000000000ULL;  // Higher in user space
-    uint64_t max = 0x00007F0000000000ULL;
-    uint64_t r = (uint64_t)_get_tsc();
+    uint64_t min  = 0x0000700000000000ULL; // Higher in user space
+    uint64_t max  = 0x00007F0000000000ULL;
+    uint64_t r    = (uint64_t)_get_tsc();
     uint64_t base = min + (r % (max - min));
     return ROUND_DOWN(base, TLS_ALIGNMENT);
 }
@@ -190,7 +203,7 @@ int init_scheduler();
 */
 
 int init_cpu_scheduler(); // inits the scheduler for a specific CPU
-                                     // with a custom process and a thread queue
+                          // with a custom process and a thread queue
 
 int proc_create(void (*entry)(), int flags, char *name);
 int thread_create(pcb_t *parent, void (*entry)(), int flags);

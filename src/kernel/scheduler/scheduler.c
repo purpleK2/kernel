@@ -26,8 +26,8 @@
 #include <fs/procfs/procfs.h>
 #include <fs/vfs/vfs.h>
 
-#include <util/assert.h>
 #include <uaccess.h>
+#include <util/assert.h>
 
 #define WNOHANG    1
 #define WUNTRACED  2
@@ -60,17 +60,20 @@ static int cpu_count;
 atomic_flag SCHEDULER_LOCK = ATOMIC_FLAG_INIT;
 
 static void cleanup_dead_thread(tcb_t *thread) {
-    if (!thread || !thread->parent) return;
+    if (!thread || !thread->parent)
+        return;
 
     void *kernel_stack = thread->kernel_stack;
     void *fpu          = thread->fpu;
     registers_t *regs  = thread->regs;
     pcb_t *parent_proc = thread->parent;
-    int is_user_mode = thread->flags & TF_MODE_USER;
+    int is_user_mode   = thread->flags & TF_MODE_USER;
 
     if (is_user_mode) {
         free_tls(thread);
     }
+
+    signal_thread_cleanup(thread);
 
     if (kernel_stack)
         pmm_free((void *)VIRT_TO_PHYSICAL(kernel_stack), SCHEDULER_STACK_PAGES);
@@ -91,8 +94,7 @@ static void cleanup_dead_thread(tcb_t *thread) {
 
     kfree(thread);
 
-    if (parent_proc->state == PROC_DEAD &&
-        parent_proc->thread_count == 0 &&
+    if (parent_proc->state == PROC_DEAD && parent_proc->thread_count == 0 &&
         parent_proc->exited == 0) {
 
         if (parent_proc->fd_table.entries) {
@@ -105,11 +107,16 @@ static void cleanup_dead_thread(tcb_t *thread) {
             }
             kfree(parent_proc->fd_table.entries);
         }
-        
-        if (parent_proc->name)     kfree(parent_proc->name);
-        if (parent_proc->cred)     kfree(parent_proc->cred);
-        if (parent_proc->children) kfree(parent_proc->children);
-        if (parent_proc->threads)  kfree(parent_proc->threads);
+
+        if (parent_proc->name)
+            kfree(parent_proc->name);
+        if (parent_proc->cred)
+            kfree(parent_proc->cred);
+        if (parent_proc->children)
+            kfree(parent_proc->children);
+        if (parent_proc->threads)
+            kfree(parent_proc->threads);
+        signal_process_cleanup(parent_proc);
         kfree(parent_proc);
     }
 }
@@ -131,16 +138,17 @@ int init_scheduler() {
 
     for (int cpu = 0; cpu < cpu_count; cpu++) {
         for (int queue = 0; queue < CONFIG_SCHED_NUM_MLFQ_QUEUES; queue++) {
-            thread_queues[cpu].queues[queue].head       = NULL;
-            thread_queues[cpu].queues[queue].tail       = NULL;
-            thread_queues[cpu].queues[queue].count      = 0;
-            thread_queues[cpu].queues[queue].time_quantum = (1 << queue) * SCHEDULER_THREAD_TS;
+            thread_queues[cpu].queues[queue].head  = NULL;
+            thread_queues[cpu].queues[queue].tail  = NULL;
+            thread_queues[cpu].queues[queue].count = 0;
+            thread_queues[cpu].queues[queue].time_quantum =
+                (1 << queue) * SCHEDULER_THREAD_TS;
         }
         thread_queues[cpu].ticks_since_boost = 0;
     }
 
     for (int i = 0; i < cpu_count; i++) {
-        cpu_locals[i].cpu_id = i;
+        cpu_locals[i].cpu_id  = i;
         cpu_locals[i].current = NULL;
     }
 
@@ -152,17 +160,19 @@ int init_scheduler() {
 }
 
 static void mlfq_enqueue(int cpu, tcb_t *thread, int priority) {
-    if (priority < 0) priority = 0;
-    if (priority >= CONFIG_SCHED_NUM_MLFQ_QUEUES) priority = CONFIG_SCHED_NUM_MLFQ_QUEUES - 1;
+    if (priority < 0)
+        priority = 0;
+    if (priority >= CONFIG_SCHED_NUM_MLFQ_QUEUES)
+        priority = CONFIG_SCHED_NUM_MLFQ_QUEUES - 1;
 
     thread->priority = priority;
-    thread->next = NULL;
+    thread->next     = NULL;
 
     mlfq_queue_t *queue = &thread_queues[cpu].queues[priority];
-    
+
     if (queue->tail) {
         queue->tail->next = thread;
-        queue->tail = thread;
+        queue->tail       = thread;
     } else {
         queue->head = thread;
         queue->tail = thread;
@@ -172,29 +182,30 @@ static void mlfq_enqueue(int cpu, tcb_t *thread, int priority) {
 
 static tcb_t *mlfq_dequeue(int cpu, int priority) {
     mlfq_queue_t *queue = &thread_queues[cpu].queues[priority];
-    
+
     if (!queue->head) {
         return NULL;
     }
 
     tcb_t *thread = queue->head;
-    queue->head = thread->next;
-    
+    queue->head   = thread->next;
+
     if (!queue->head) {
         queue->tail = NULL;
     }
-    
+
     queue->count--;
     thread->next = NULL;
-    
+
     return thread;
 }
 
 static tcb_t *pick_next_thread(int cpu) {
-    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES; priority++) {
+    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES;
+         priority++) {
         mlfq_queue_t *queue = &thread_queues[cpu].queues[priority];
-        tcb_t *thread = queue->head;
-        tcb_t *prev = NULL;
+        tcb_t *thread       = queue->head;
+        tcb_t *prev         = NULL;
 
         while (thread != NULL) {
             if (thread->state == THREAD_READY) {
@@ -203,16 +214,16 @@ static tcb_t *pick_next_thread(int cpu) {
                 } else {
                     queue->head = thread->next;
                 }
-                
+
                 if (thread == queue->tail) {
                     queue->tail = prev;
                 }
-                
+
                 queue->count--;
                 thread->next = NULL;
-                
+
                 thread->time_slice = queue->time_quantum;
-                
+
                 return thread;
             }
 
@@ -228,13 +239,13 @@ static tcb_t *pick_next_thread(int cpu) {
                     queue->tail = prev;
 
                 queue->count--;
-                thread = dead->next;
+                thread     = dead->next;
                 dead->next = NULL;
                 cleanup_dead_thread(dead);
                 continue;
             }
 
-            prev = thread;
+            prev   = thread;
             thread = thread->next;
         }
     }
@@ -243,35 +254,36 @@ static tcb_t *pick_next_thread(int cpu) {
 }
 
 static void mlfq_boost_all(int cpu) {
-    for (int priority = 1; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES; priority++) {
+    for (int priority = 1; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES;
+         priority++) {
         mlfq_queue_t *src_queue = &thread_queues[cpu].queues[priority];
         mlfq_queue_t *dst_queue = &thread_queues[cpu].queues[0];
-        
+
         if (src_queue->head) {
             if (dst_queue->tail) {
                 dst_queue->tail->next = src_queue->head;
-                dst_queue->tail = src_queue->tail;
+                dst_queue->tail       = src_queue->tail;
             } else {
                 dst_queue->head = src_queue->head;
                 dst_queue->tail = src_queue->tail;
             }
-            
+
             dst_queue->count += src_queue->count;
-            
+
             tcb_t *thread = src_queue->head;
             while (thread) {
                 thread->priority = 0;
-                thread = thread->next;
+                thread           = thread->next;
             }
-            
-            src_queue->head = NULL;
-            src_queue->tail = NULL;
+
+            src_queue->head  = NULL;
+            src_queue->tail  = NULL;
             src_queue->count = 0;
         }
     }
-    
+
     thread_queues[cpu].ticks_since_boost = 0;
-    
+
 #ifdef CONFIG_SCHED_DEBUG
     debugf_debug("MLFQ: Boosted all threads on CPU %d\n", cpu);
 #endif
@@ -292,8 +304,9 @@ int proc_create(void (*entry)(), int flags, char *name) {
     }
 
     proc->fd_table.entries = NULL;
-    proc->fd_table.size = 0;
+    proc->fd_table.size    = 0;
 
+    signal_process_init(proc);
 
     int vflags = (flags & TF_MODE_USER ? VMO_USER_RW : VMO_KERNEL_RW);
     if (flags & TF_MODE_USER) {
@@ -313,22 +326,24 @@ int proc_create(void (*entry)(), int flags, char *name) {
         memcpy(proc->cred, current_cred, sizeof(user_cred_t));
     } else {
         if (flags & TF_MODE_USER) {
-            proc->cred->uid    = UID_ROOT;
-            proc->cred->euid   = UID_ROOT;
-            proc->cred->suid   = UID_ROOT;
-            proc->cred->gid    = GID_ROOT;
-            proc->cred->egid   = GID_ROOT;
-            proc->cred->sgid   = GID_ROOT;
-            proc->cred->ngroups = 1;
+            proc->cred->uid       = UID_ROOT;
+            proc->cred->euid      = UID_ROOT;
+            proc->cred->suid      = UID_ROOT;
+            proc->cred->gid       = GID_ROOT;
+            proc->cred->egid      = GID_ROOT;
+            proc->cred->sgid      = GID_ROOT;
+            proc->cred->ngroups   = 1;
             proc->cred->groups[0] = GID_ROOT;
-            debugf_debug("Created process PID=%d in user mode with root credentials, since it doesnt have parent\n", proc->pid);
+            debugf_debug("Created process PID=%d in user mode with root "
+                         "credentials, since it doesnt have parent\n",
+                         proc->pid);
         } else {
-            proc->cred->uid    = UID_INVALID;
-            proc->cred->euid   = UID_INVALID;
-            proc->cred->suid   = UID_INVALID;
-            proc->cred->gid    = GID_INVALID;
-            proc->cred->egid   = GID_INVALID;
-            proc->cred->sgid   = GID_INVALID;
+            proc->cred->uid     = UID_INVALID;
+            proc->cred->euid    = UID_INVALID;
+            proc->cred->suid    = UID_INVALID;
+            proc->cred->gid     = GID_INVALID;
+            proc->cred->egid    = GID_INVALID;
+            proc->cred->sgid    = GID_INVALID;
             proc->cred->ngroups = 0;
         }
     }
@@ -336,15 +351,15 @@ int proc_create(void (*entry)(), int flags, char *name) {
     pcb_t *parent_pcb = get_current_pcb();
 
     if (proc->pid == 1 || !parent_pcb) {
-        proc->pgid = proc->pid;
-        proc->sid = proc->pid;
+        proc->pgid              = proc->pid;
+        proc->sid               = proc->pid;
         proc->is_session_leader = 1;
-        proc->ctty = NULL;
+        proc->ctty              = NULL;
     } else {
-        proc->pgid = parent_pcb->pgid;
-        proc->sid = parent_pcb->sid;
+        proc->pgid              = parent_pcb->pgid;
+        proc->sid               = parent_pcb->sid;
         proc->is_session_leader = 0;
-        proc->ctty = parent_pcb->ctty;
+        proc->ctty              = parent_pcb->ctty;
     }
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -372,6 +387,8 @@ int thread_create(pcb_t *parent, void (*entry)(), int flags) {
     thread->fpu = (void *)PHYS_TO_VIRTUAL(pmm_alloc_page());
     memset(thread->fpu, 0, PFRAME_SIZE);
 
+    signal_thread_init(thread);
+
     registers_t *ctx = kmalloc(sizeof(registers_t));
     memset(ctx, 0, sizeof(registers_t));
 
@@ -379,21 +396,23 @@ int thread_create(pcb_t *parent, void (*entry)(), int flags) {
         uint64_t user_stack_top  = USER_STACK_TOP;
         uint64_t user_stack_base = user_stack_top - SCHEDULER_STACKSZ;
 
-        thread->user_stack = valloc_at(parent->vmc, (void *)(uintptr_t)user_stack_base,
-                  SCHEDULER_STACK_PAGES, VMO_USER_RW,
-                  NULL);
+        thread->user_stack =
+            valloc_at(parent->vmc, (void *)(uintptr_t)user_stack_base,
+                      SCHEDULER_STACK_PAGES, VMO_USER_RW, NULL);
 
-        thread->user_stack = (void *)(uintptr_t)PHYS_TO_VIRTUAL(
-            pg_virtual_to_phys((uint64_t*)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table), (uint64_t)(uintptr_t)thread->user_stack)
-        );
+        thread->user_stack =
+            (void *)(uintptr_t)PHYS_TO_VIRTUAL(pg_virtual_to_phys(
+                (uint64_t *)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table),
+                (uint64_t)(uintptr_t)thread->user_stack));
 
-        thread->kernel_stack = valloc(parent->vmc, SCHEDULER_STACK_PAGES,
-                  VMO_KERNEL_RW, NULL);
+        thread->kernel_stack =
+            valloc(parent->vmc, SCHEDULER_STACK_PAGES, VMO_KERNEL_RW, NULL);
 
-        thread->kernel_stack = (void *)(uintptr_t)PHYS_TO_VIRTUAL(
-            pg_virtual_to_phys((uint64_t*)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table), (uint64_t)(uintptr_t)thread->kernel_stack)
-        );
-        
+        thread->kernel_stack =
+            (void *)(uintptr_t)PHYS_TO_VIRTUAL(pg_virtual_to_phys(
+                (uint64_t *)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table),
+                (uint64_t)(uintptr_t)thread->kernel_stack));
+
         ctx->rip    = (uint64_t)entry;
         ctx->cs     = 0x1B | 3;
         ctx->ss     = 0x23 | 3;
@@ -403,7 +422,8 @@ int thread_create(pcb_t *parent, void (*entry)(), int flags) {
         ctx->rsp    = user_stack_top;
 
         if (allocate_tls(thread, TLS_MIN_SIZE) != EOK) {
-            debugf_warn("Failed to allocate TLS for thread TID=%d\n", thread->tid);
+            debugf_warn("Failed to allocate TLS for thread TID=%d\n",
+                        thread->tid);
             pmm_free((void *)VIRT_TO_PHYSICAL(thread->kernel_stack),
                      SCHEDULER_STACK_PAGES);
             pmm_free((void *)VIRT_TO_PHYSICAL(thread->user_stack),
@@ -430,19 +450,20 @@ int thread_create(pcb_t *parent, void (*entry)(), int flags) {
         }
 
 #ifdef CONFIG_SCHED_DEBUG
-        debugf_debug(
-            "Created usermode thread TID=%d entry=%p ustack=%p kstack=%p tls=%p priority=%d\n",
-            thread->tid, entry, (void *)ctx->rsp, thread->kernel_stack, 
-            thread->tls.base_virt, thread->priority);
+        debugf_debug("Created usermode thread TID=%d entry=%p ustack=%p "
+                     "kstack=%p tls=%p priority=%d\n",
+                     thread->tid, entry, (void *)ctx->rsp, thread->kernel_stack,
+                     thread->tls.base_virt, thread->priority);
 #endif
     } else {
-        thread->kernel_stack = valloc(parent->vmc, SCHEDULER_STACK_PAGES,
-                  VMO_KERNEL_RW, NULL);
+        thread->kernel_stack =
+            valloc(parent->vmc, SCHEDULER_STACK_PAGES, VMO_KERNEL_RW, NULL);
 
-        thread->kernel_stack = (void *)(uintptr_t)PHYS_TO_VIRTUAL(
-            pg_virtual_to_phys((uint64_t*)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table), (uint64_t)(uintptr_t)thread->kernel_stack)
-        );
-        
+        thread->kernel_stack =
+            (void *)(uintptr_t)PHYS_TO_VIRTUAL(pg_virtual_to_phys(
+                (uint64_t *)(uintptr_t)PHYS_TO_VIRTUAL(parent->vmc->pml4_table),
+                (uint64_t)(uintptr_t)thread->kernel_stack));
+
         thread->user_stack = NULL;
 
         ctx->rip    = (uint64_t)entry;
@@ -453,8 +474,9 @@ int thread_create(pcb_t *parent, void (*entry)(), int flags) {
         ctx->rsp    = (uint64_t)(thread->kernel_stack + SCHEDULER_STACKSZ - 8);
 
 #ifdef CONFIG_SCHED_DEBUG
-        debugf_debug("Created kernel thread TID=%d entry=%p kstack=%p priority=%d\n",
-                     thread->tid, entry, (void *)ctx->rsp, thread->priority);
+        debugf_debug(
+            "Created kernel thread TID=%d entry=%p kstack=%p priority=%d\n",
+            thread->tid, entry, (void *)ctx->rsp, thread->priority);
 #endif
     }
 
@@ -485,7 +507,7 @@ int proc_fork(registers_t *regs) {
         return -EINVAL;
     }
 
-    pcb_t *parent = get_current_pcb();
+    pcb_t *parent  = get_current_pcb();
     tcb_t *current = get_current_tcb();
 
     if (!parent || !current) {
@@ -526,7 +548,7 @@ int proc_fork(registers_t *regs) {
     child->wakeup_tick = 0;
 
     child->fd_table.entries = NULL;
-    child->fd_table.size = 0;
+    child->fd_table.size    = 0;
 
     if (parent->fd_table.size > 0) {
         for (size_t i = 0; i < parent->fd_table.size; i++) {
@@ -542,8 +564,7 @@ int proc_fork(registers_t *regs) {
                         continue;
                     }
                     memcpy(nf, pf, sizeof(fileio_t));
-                    if (nf->private &&
-                        !(nf->flags & PIPE_READ_END) &&
+                    if (nf->private && !(nf->flags & PIPE_READ_END) &&
                         !(nf->flags & PIPE_WRITE_END)) {
                         vnode_ref((vnode_t *)nf->private);
                     }
@@ -555,8 +576,8 @@ int proc_fork(registers_t *regs) {
         }
     }
 
-    child->cwd = parent->cwd;
-    child->cpu = parent->cpu;
+    child->cwd   = parent->cwd;
+    child->cpu   = parent->cpu;
     child->flags = parent->flags;
 
     child->vmc = child_vmc;
@@ -569,15 +590,15 @@ int proc_fork(registers_t *regs) {
     }
     memcpy(child->cred, parent->cred, sizeof(user_cred_t));
 
-    child->signal_handler = parent->signal_handler;
+    signal_process_fork(child, parent);
 
-    child->pgid = parent->pgid;
-    child->sid = parent->sid;
+    child->pgid              = parent->pgid;
+    child->sid               = parent->sid;
     child->is_session_leader = 0;
-    child->ctty = parent->ctty;
+    child->ctty              = parent->ctty;
 
     child->thread_count = 1;
-    child->threads = kmalloc(sizeof(tcb_t *));
+    child->threads      = kmalloc(sizeof(tcb_t *));
     if (!child->threads) {
         kfree(child->cred);
         kfree(child->fd_table.entries);
@@ -595,11 +616,11 @@ int proc_fork(registers_t *regs) {
     }
     memset(child_thread, 0, sizeof(tcb_t));
 
-    child_thread->tid      = 0;
-    child_thread->parent   = child;
-    child_thread->flags    = current->flags;
-    child_thread->state    = THREAD_READY;
-    child_thread->priority = current->priority;
+    child_thread->tid        = 0;
+    child_thread->parent     = child;
+    child_thread->flags      = current->flags;
+    child_thread->state      = THREAD_READY;
+    child_thread->priority   = current->priority;
     child_thread->time_slice = SCHEDULER_THREAD_TS;
 
     child_thread->fpu = (void *)PHYS_TO_VIRTUAL(pmm_alloc_page());
@@ -612,6 +633,8 @@ int proc_fork(registers_t *regs) {
         return -ENOMEM;
     }
     memcpy(child_thread->fpu, current->fpu, PFRAME_SIZE);
+
+    signal_thread_fork(child_thread, current);
 
     registers_t *child_regs = kmalloc(sizeof(registers_t));
     if (!child_regs) {
@@ -628,27 +651,25 @@ int proc_fork(registers_t *regs) {
 
     child_thread->regs = child_regs;
 
-    child_thread->kernel_stack = valloc(child->vmc,
-    SCHEDULER_STACK_PAGES,
-    VMO_KERNEL_RW,
-    NULL);
+    child_thread->kernel_stack =
+        valloc(child->vmc, SCHEDULER_STACK_PAGES, VMO_KERNEL_RW, NULL);
 
     uint64_t kstack_virt = (uint64_t)(uintptr_t)child_thread->kernel_stack;
     uint64_t kstack_phys = pg_virtual_to_phys(
         (uint64_t *)(uintptr_t)PHYS_TO_VIRTUAL(child->vmc->pml4_table),
-        kstack_virt
-    );
+        kstack_virt);
 
-    child_thread->kernel_stack = (void *)(uintptr_t)PHYS_TO_VIRTUAL(kstack_phys);
+    child_thread->kernel_stack =
+        (void *)(uintptr_t)PHYS_TO_VIRTUAL(kstack_phys);
 
     uint64_t user_stack_top  = USER_STACK_TOP;
     uint64_t user_stack_base = user_stack_top - SCHEDULER_STACKSZ;
 
     vfree(child->vmc, (void *)(uintptr_t)user_stack_base, false);
 
-    child_thread->user_stack = valloc_at(child->vmc, (void *)(uintptr_t)user_stack_base,
-        SCHEDULER_STACK_PAGES, VMO_USER_RW,
-        NULL);
+    child_thread->user_stack =
+        valloc_at(child->vmc, (void *)(uintptr_t)user_stack_base,
+                  SCHEDULER_STACK_PAGES, VMO_USER_RW, NULL);
 
     if (!child_thread->user_stack) {
         debugf_warn("proc_fork: valloc_at failed for child user stack!\n");
@@ -662,24 +683,25 @@ int proc_fork(registers_t *regs) {
         return -ENOMEM;
     }
 
-    uint64_t child_stack_phys = pg_virtual_to_phys(
-        (uint64_t *)PHYS_TO_VIRTUAL(child->vmc->pml4_table),
-        (uint64_t)(uintptr_t)child_thread->user_stack);
+    uint64_t child_stack_phys =
+        pg_virtual_to_phys((uint64_t *)PHYS_TO_VIRTUAL(child->vmc->pml4_table),
+                           (uint64_t)(uintptr_t)child_thread->user_stack);
 
-    child_thread->user_stack = (void *)(uintptr_t)PHYS_TO_VIRTUAL(child_stack_phys);
+    child_thread->user_stack =
+        (void *)(uintptr_t)PHYS_TO_VIRTUAL(child_stack_phys);
 
     memcpy(child_thread->user_stack, current->user_stack, SCHEDULER_STACKSZ);
 
     memcpy(&child_thread->tls, &current->tls, sizeof(tls_region_t));
-    child_thread->tls_ptr = current->tls_ptr;
+    child_thread->tls_ptr       = current->tls_ptr;
     child_thread->tls.base_phys = NULL;
 
     child->main_thread = child_thread;
     child->threads[0]  = child_thread;
 
-    child->exit_code = 0;
-    child->exited = 0;
-    child->wait_lock = (atomic_flag)ATOMIC_FLAG_INIT;
+    child->exit_code  = 0;
+    child->exited     = 0;
+    child->wait_lock  = (atomic_flag)ATOMIC_FLAG_INIT;
     child->wait_queue = NULL;
 
     proc_add_child(parent, child);
@@ -691,10 +713,8 @@ int proc_fork(registers_t *regs) {
     mlfq_enqueue(cpu, child_thread, child_thread->priority);
     spinlock_release(&SCHEDULER_LOCK);
 
-
     return child->pid;
 }
-
 
 // marks all threads as READY
 int proc_engage(pcb_t *proc) {
@@ -721,17 +741,19 @@ int proc_engage(pcb_t *proc) {
 }
 
 void proc_add_child(pcb_t *parent, pcb_t *child) {
-    if (!parent || !child) return;
+    if (!parent || !child)
+        return;
 
     parent->children = krealloc(parent->children,
-        sizeof(pcb_t *) * (parent->children_count + 1));
+                                sizeof(pcb_t *) * (parent->children_count + 1));
     parent->children[parent->children_count] = child;
     parent->children_count++;
     child->parent = parent;
 }
 
 void proc_remove_child(pcb_t *parent, pcb_t *child) {
-    if (!parent || !child) return;
+    if (!parent || !child)
+        return;
 
     for (int i = 0; i < parent->children_count; i++) {
         if (parent->children[i] == child) {
@@ -743,8 +765,8 @@ void proc_remove_child(pcb_t *parent, pcb_t *child) {
                 kfree(parent->children);
                 parent->children = NULL;
             } else {
-                parent->children = krealloc(parent->children,
-                    sizeof(pcb_t *) * parent->children_count);
+                parent->children = krealloc(
+                    parent->children, sizeof(pcb_t *) * parent->children_count);
             }
             return;
         }
@@ -752,16 +774,17 @@ void proc_remove_child(pcb_t *parent, pcb_t *child) {
 }
 
 static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
-    if (!parent || !child) return 0;
+    if (!parent || !child)
+        return 0;
 
     spinlock_acquire(&parent->wait_lock);
-    
+
     tcb_t **prev_ptr = &parent->wait_queue;
-    tcb_t *waiter = parent->wait_queue;
-    
+    tcb_t *waiter    = parent->wait_queue;
+
     while (waiter) {
         int match = 0;
-        
+
         if (waiter->wait_pid == -1) {
             match = 1;
         } else if (waiter->wait_pid == 0) {
@@ -771,55 +794,57 @@ static int wake_waiter_for_child(pcb_t *parent, pcb_t *child) {
         } else {
             match = (child->pgid == -waiter->wait_pid);
         }
-        
+
         if (match) {
-            *prev_ptr = waiter->wq_next;
-            waiter->wq_next = NULL;
+            *prev_ptr            = waiter->wq_next;
+            waiter->wq_next      = NULL;
             waiter->on_waitqueue = 0;
-            
-            int child_pid = child->pid;
+
+            int child_pid   = child->pid;
             int exit_status = __W_EXITCODE(child->exit_code, 0);
-            
+
             waiter->wait_result = child_pid;
             waiter->wait_status = exit_status;
-            
+
             if (waiter->regs) {
                 waiter->regs->rax = (uint64_t)(int64_t)child_pid;
             }
-            
+
             spinlock_release(&parent->wait_lock);
-            
+
             waiter->state = THREAD_READY;
             spinlock_acquire(&SCHEDULER_LOCK);
             int cpu = get_cpu();
             mlfq_enqueue(cpu, waiter, waiter->priority);
             spinlock_release(&SCHEDULER_LOCK);
-            
+
             return 1;
         }
-        
+
         prev_ptr = &waiter->wq_next;
-        waiter = waiter->wq_next;
+        waiter   = waiter->wq_next;
     }
-    
+
     spinlock_release(&parent->wait_lock);
     return 0;
 }
 
 static void add_to_wait_queue(pcb_t *parent, tcb_t *thread) {
-    if (!parent || !thread) return;
+    if (!parent || !thread)
+        return;
 
     spinlock_acquire(&parent->wait_lock);
-    thread->wq_next = parent->wait_queue;
+    thread->wq_next      = parent->wait_queue;
     thread->on_waitqueue = 1;
-    thread->state = THREAD_WAITING;
-    parent->wait_queue = thread;
+    thread->state        = THREAD_WAITING;
+    parent->wait_queue   = thread;
     spinlock_release(&parent->wait_lock);
 }
 
 int do_waitpid(int pid, int *status_ptr, int options) {
     pcb_t *current = get_current_pcb();
-    if (!current) return -EFAULT;
+    if (!current)
+        return -EFAULT;
 
     if (current->children_count == 0) {
         return -ECHILD;
@@ -827,14 +852,18 @@ int do_waitpid(int pid, int *status_ptr, int options) {
 
     for (int i = 0; i < current->children_count; i++) {
         pcb_t *child = current->children[i];
-        if (!child) continue;
+        if (!child)
+            continue;
 
-        if (pid > 0 && child->pid != pid) continue;
-        if (pid == 0 && child->pgid != current->pgid) continue;
-        if (pid < -1 && child->pgid != -pid) continue;
+        if (pid > 0 && child->pid != pid)
+            continue;
+        if (pid == 0 && child->pgid != current->pgid)
+            continue;
+        if (pid < -1 && child->pgid != -pid)
+            continue;
 
         if (child->exited) {
-            int child_pid = child->pid;
+            int child_pid   = child->pid;
             int exit_status = __W_EXITCODE(child->exit_code, 0);
 
             if (status_ptr) {
@@ -855,10 +884,14 @@ int do_waitpid(int pid, int *status_ptr, int options) {
                     }
                     kfree(child->fd_table.entries);
                 }
-                if (child->name)     kfree(child->name);
-                if (child->cred)     kfree(child->cred);
-                if (child->children) kfree(child->children);
-                if (child->threads)  kfree(child->threads);
+                if (child->name)
+                    kfree(child->name);
+                if (child->cred)
+                    kfree(child->cred);
+                if (child->children)
+                    kfree(child->children);
+                if (child->threads)
+                    kfree(child->threads);
                 kfree(child);
             }
 
@@ -884,16 +917,18 @@ int do_waitpid(int pid, int *status_ptr, int options) {
     }
 
     tcb_t *me = get_current_tcb();
-    if (!me) return -EFAULT;
+    if (!me)
+        return -EFAULT;
 
     registers_t *ctx = get_syscall_context();
-    if (!ctx) return -EFAULT;
+    if (!ctx)
+        return -EFAULT;
 
-    me->wait_pid = pid;
+    me->wait_pid        = pid;
     me->wait_status_ptr = status_ptr;
-    me->wait_result = 0;
-    me->wait_status = 0;
-    me->regs = ctx;
+    me->wait_result     = 0;
+    me->wait_status     = 0;
+    me->regs            = ctx;
 
     add_to_wait_queue(current, me);
 
@@ -911,7 +946,7 @@ int allocate_tls(tcb_t *thread, size_t requested_size) {
         requested_size = TLS_MIN_SIZE;
     }
     if (requested_size > TLS_MAX_SIZE) {
-        debugf_warn("allocate_tls: requested size %zu exceeds max %zu\n", 
+        debugf_warn("allocate_tls: requested size %zu exceeds max %zu\n",
                     requested_size, (size_t)TLS_MAX_SIZE);
         return -EINVAL;
     }
@@ -923,7 +958,8 @@ int allocate_tls(tcb_t *thread, size_t requested_size) {
     }
     size_t pages = total_size / PFRAME_SIZE;
 
-    uint64_t *pml4 = (uint64_t *)PHYS_TO_VIRTUAL(thread->parent->vmc->pml4_table);
+    uint64_t *pml4 =
+        (uint64_t *)PHYS_TO_VIRTUAL(thread->parent->vmc->pml4_table);
 
     uint64_t region_virt  = choose_random_tls_base();
     uint64_t fs_base_virt = region_virt + (total_size - tcb_size);
@@ -942,13 +978,13 @@ int allocate_tls(tcb_t *thread, size_t requested_size) {
     uint64_t region_kernel_virt = PHYS_TO_VIRTUAL(region_phys);
     memset((void *)region_kernel_virt, 0, total_size);
 
-    uint64_t tcb_offset      = fs_base_virt - region_virt;
-    user_tls_t *tcb          = (user_tls_t *)(region_kernel_virt + tcb_offset);
-    tcb->self                = (user_tls_t *)fs_base_virt;
-    tcb->dtv                 = NULL;
-    tcb->private_data        = NULL;
-    tcb->errno               = 0;
-    tcb->stack_guard         = (void *)0xDEADBEEFCAFEBABEULL;
+    uint64_t tcb_offset = fs_base_virt - region_virt;
+    user_tls_t *tcb     = (user_tls_t *)(region_kernel_virt + tcb_offset);
+    tcb->self           = (user_tls_t *)fs_base_virt;
+    tcb->dtv            = NULL;
+    tcb->private_data   = NULL;
+    tcb->errno          = 0;
+    tcb->stack_guard    = (void *)0xDEADBEEFCAFEBABEULL;
 
     map_region(pml4, region_phys, region_virt, pages, PMLE_USER_READ_WRITE);
 
@@ -967,17 +1003,18 @@ void free_tls(tcb_t *thread) {
     }
 
     if (thread->parent && thread->parent->vmc) {
-        uint64_t region_virt =
-            (uint64_t)(uintptr_t)thread->tls.base_virt -
-            (thread->tls.size - sizeof(user_tls_t));
+        uint64_t region_virt = (uint64_t)(uintptr_t)thread->tls.base_virt -
+                               (thread->tls.size - sizeof(user_tls_t));
 
-        unmap_region((uint64_t *)PHYS_TO_VIRTUAL(thread->parent->vmc->pml4_table),
-                     region_virt, thread->tls.pages);
+        unmap_region(
+            (uint64_t *)PHYS_TO_VIRTUAL(thread->parent->vmc->pml4_table),
+            region_virt, thread->tls.pages);
     }
 
     pmm_free(thread->tls.base_phys, thread->tls.pages);
 
-    debugf_debug("Freed TLS for TID=%d: %zu pages\n", thread->tid, thread->tls.pages);
+    debugf_debug("Freed TLS for TID=%d: %zu pages\n", thread->tid,
+                 thread->tls.pages);
 
     memset(&thread->tls, 0, sizeof(tls_region_t));
     thread->tls_ptr = NULL;
@@ -1041,7 +1078,8 @@ static void def_idle_proc() {
     }
 }
 
-// new array that has init path at the beginning and then the cmdline speicified arguments
+// new array that has init path at the beginning and then the cmdline speicified
+// arguments
 const char **get_init_argv() {
     const char *init_path = get_bootloader_data()->init_exec;
 
@@ -1075,10 +1113,14 @@ int init_cpu_scheduler() {
 
     if (cpu == get_bootloader_data()->bootstrap_cpu_id) {
         if (get_bootloader_data()->init_exec == NULL) {
-            debugf_warn("No init executable specified, starting idle process instead.\n");
-            binfmt_exec("/bin/init.elf", get_init_argv_no_init_exec_arg("/initrd/bin/init.elf"), NULL);
+            debugf_warn("No init executable specified, starting idle process "
+                        "instead.\n");
+            binfmt_exec("/bin/init.elf",
+                        get_init_argv_no_init_exec_arg("/initrd/bin/init.elf"),
+                        NULL);
         } else {
-            binfmt_exec(get_bootloader_data()->init_exec, get_init_argv(), NULL);
+            binfmt_exec(get_bootloader_data()->init_exec, get_init_argv(),
+                        NULL);
         }
     }
 
@@ -1087,7 +1129,8 @@ int init_cpu_scheduler() {
         proc_engage(pcb_lookup(idle_pid));
     }
 
-    _cpu_set_msr(0xC0000102, (uint64_t)&cpu_locals[get_cpu()]); // IA32_KERNEL_GS_BASE
+    _cpu_set_msr(0xC0000102,
+                 (uint64_t)&cpu_locals[get_cpu()]); // IA32_KERNEL_GS_BASE
 
     return 0;
 }
@@ -1116,21 +1159,22 @@ int pcb_destroy(int pid) {
 
 void thread_push_to_queue(tcb_t *to_push) {
     int cpu = get_cpu();
-    
+
     mlfq_enqueue(cpu, to_push, to_push->priority);
 }
 
 void thread_remove_from_queue(tcb_t *to_remove) {
     int cpu = get_cpu();
-    
-    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES; priority++) {
+
+    for (int priority = 0; priority < CONFIG_SCHED_NUM_MLFQ_QUEUES;
+         priority++) {
         mlfq_queue_t *queue = &thread_queues[cpu].queues[priority];
-        tcb_t **p = &queue->head;
-        tcb_t *prev = NULL;
+        tcb_t **p           = &queue->head;
+        tcb_t *prev         = NULL;
 
         while (*p && *p != to_remove) {
             prev = *p;
-            p = &(*p)->next;
+            p    = &(*p)->next;
         }
 
         if (*p == NULL) {
@@ -1138,11 +1182,11 @@ void thread_remove_from_queue(tcb_t *to_remove) {
         }
 
         *p = to_remove->next;
-        
+
         if (to_remove == queue->tail) {
             queue->tail = prev;
         }
-        
+
         queue->count--;
         to_remove->next = NULL;
         return;
@@ -1176,19 +1220,19 @@ int proc_exit(int exit_code) {
     }
 
     pcb_t *proc = current->parent;
-    int pid = proc->pid;
-    char *name = proc->name;
+    int pid     = proc->pid;
+    char *name  = proc->name;
 
     if (pid == 1) {
         kpanic("Init process was killed!");
         scheduler_idle();
     }
-    
+
     debugf_debug("Process %d (%s) exited with code %d\n", pid,
-           name ? name : "no-name", exit_code);
+                 name ? name : "no-name", exit_code);
 
     proc->exit_code = exit_code;
-    proc->exited = 1;
+    proc->exited    = 1;
 
     proc->state = PROC_DEAD;
     for (int i = 0; i < proc->thread_count; i++) {
@@ -1217,7 +1261,8 @@ int proc_exit(int exit_code) {
     }
 
     registers_t *ctx = get_syscall_context();
-    if (!ctx) ctx = current->regs;
+    if (!ctx)
+        ctx = current->regs;
 
     yield(ctx);
     __builtin_unreachable();
@@ -1228,13 +1273,15 @@ int scheduler_enqueue(tcb_t *thread) {
         return -EINVAL;
     }
 
+    spinlock_acquire(&SCHEDULER_LOCK);
     thread_push_to_queue(thread);
+    spinlock_release(&SCHEDULER_LOCK);
     return EOK;
 }
 
 void yield(registers_t *ctx) {
     __asm__ volatile("cli");
-    
+
     int cpu        = get_cpu();
     tcb_t *current = current_threads[cpu];
     tcb_t *next    = NULL;
@@ -1242,22 +1289,32 @@ void yield(registers_t *ctx) {
     _load_pml4(get_kernel_pml4());
 
     if (current && current->deferred_free_kstack) {
-        pmm_free((void*)VIRT_TO_PHYSICAL(current->deferred_free_kstack), SCHEDULER_STACK_PAGES);
+        pmm_free((void *)VIRT_TO_PHYSICAL(current->deferred_free_kstack),
+                 SCHEDULER_STACK_PAGES);
         current->deferred_free_kstack = NULL;
     }
 
     thread_queues[cpu].ticks_since_boost++;
-    if (thread_queues[cpu].ticks_since_boost >= CONFIG_SCHED_MLFQ_BOOST_INTERVAL) {
+    if (thread_queues[cpu].ticks_since_boost >=
+        CONFIG_SCHED_MLFQ_BOOST_INTERVAL) {
         mlfq_boost_all(cpu);
     }
+
+    spinlock_acquire(&SCHEDULER_LOCK);
 
     if (current) {
         switch (current->state) {
         case THREAD_RUNNING:
             if (--current->time_slice > 0) {
+                if (current->flags & TF_MODE_USER) {
+                    signal_prepare_delivery(current, ctx);
+                }
+
+                spinlock_release(&SCHEDULER_LOCK);
+
                 if (current->parent && current->parent->vmc) {
-                    uint64_t pml4_phys =
-                        VIRT_TO_PHYSICAL((uint64_t)current->parent->vmc->pml4_table);
+                    uint64_t pml4_phys = VIRT_TO_PHYSICAL(
+                        (uint64_t)current->parent->vmc->pml4_table);
                     _load_pml4((uint64_t *)pml4_phys);
                 }
                 __asm__ volatile("sti");
@@ -1273,11 +1330,11 @@ void yield(registers_t *ctx) {
             if (new_priority >= CONFIG_SCHED_NUM_MLFQ_QUEUES) {
                 new_priority = CONFIG_SCHED_NUM_MLFQ_QUEUES - 1;
             }
-            
+
 #ifdef CONFIG_SCHED_DEBUG
             if (new_priority != current->priority) {
                 debugf_debug("Thread TID=%d demoted from priority %d to %d\n",
-                            current->tid, current->priority, new_priority);
+                             current->tid, current->priority, new_priority);
             }
 #endif
 
@@ -1288,7 +1345,7 @@ void yield(registers_t *ctx) {
         case THREAD_READY:
             fpu_save(current->fpu);
             current->regs = ctx;
-            next = pick_next_thread(cpu);
+            next          = pick_next_thread(cpu);
             break;
 
         case THREAD_WAITING:
@@ -1306,10 +1363,11 @@ void yield(registers_t *ctx) {
             break;
 
         default:
-            debugf_warn("yield: CPU %d current thread TID=%d has unknown state %d\n",
-                        cpu, current->tid, (int)current->state);
+            debugf_warn(
+                "yield: CPU %d current thread TID=%d has unknown state %d\n",
+                cpu, current->tid, (int)current->state);
             current->state = THREAD_DEAD;
-            next = pick_next_thread(cpu);
+            next           = pick_next_thread(cpu);
             break;
         }
     } else {
@@ -1318,32 +1376,38 @@ void yield(registers_t *ctx) {
 
     if (!next) {
         current_threads[cpu] = NULL;
+        spinlock_release(&SCHEDULER_LOCK);
         __asm__ volatile("sti");
-        while (!(next = pick_next_thread(cpu))) {
+        while (1) {
             __asm__ volatile("hlt");
+
+            __asm__ volatile("cli");
+            spinlock_acquire(&SCHEDULER_LOCK);
+            next = pick_next_thread(cpu);
+            if (next) {
+                break;
+            }
+            spinlock_release(&SCHEDULER_LOCK);
+            __asm__ volatile("sti");
         }
-        __asm__ volatile("cli");
     }
 
     current_threads[cpu] = next;
     next->state          = THREAD_RUNNING;
 
+    spinlock_release(&SCHEDULER_LOCK);
+
 #ifdef CONFIG_SCHED_DEBUG
     if (next && next->parent) {
         debugf_debug("yield: switching to PID=%d TID=%d RIP=%p RSP=%p\n",
-                     next->parent->pid,
-                     next->tid,
-                     (void *)next->regs->rip,
+                     next->parent->pid, next->tid, (void *)next->regs->rip,
                      (void *)next->regs->rsp);
     }
 #endif
 
-    if (next->parent && next->parent->vmc) {
-        uint64_t pml4_phys = VIRT_TO_PHYSICAL((uint64_t)next->parent->vmc->pml4_table);
-    
-        vmc_switch(next->parent->vmc);
-        _load_pml4((uint64_t *)pml4_phys);
-    }
+    registers_t run_ctx = *next->regs;
+    void *next_fpu      = next->fpu;
+    vmc_t *next_vmc     = next->parent ? next->parent->vmc : NULL;
 
     if (next && (next->flags & TF_MODE_USER)) {
         uint64_t kernel_stack_top =
@@ -1353,6 +1417,8 @@ void yield(registers_t *ctx) {
         if (next->tls.base_virt) {
             _cpu_set_msr(0xC0000100, (uint64_t)next->tls.base_virt);
         }
+
+        signal_prepare_delivery(next, &run_ctx);
     }
 
     if (next->wait_status_ptr && next->wait_result > 0) {
@@ -1360,8 +1426,8 @@ void yield(registers_t *ctx) {
         next->wait_status_ptr = NULL;
 
         pcb_t *woken_parent = next->parent;
-        int waited_pid = next->wait_result;
-        next->wait_result = 0;
+        int waited_pid      = next->wait_result;
+        next->wait_result   = 0;
 
         if (woken_parent) {
             for (int i = 0; i < woken_parent->children_count; i++) {
@@ -1380,10 +1446,14 @@ void yield(registers_t *ctx) {
                             }
                             kfree(ch->fd_table.entries);
                         }
-                        if (ch->name)     kfree(ch->name);
-                        if (ch->cred)     kfree(ch->cred);
-                        if (ch->children) kfree(ch->children);
-                        if (ch->threads)  kfree(ch->threads);
+                        if (ch->name)
+                            kfree(ch->name);
+                        if (ch->cred)
+                            kfree(ch->cred);
+                        if (ch->children)
+                            kfree(ch->children);
+                        if (ch->threads)
+                            kfree(ch->threads);
                         kfree(ch);
                     }
                     break;
@@ -1392,8 +1462,14 @@ void yield(registers_t *ctx) {
         }
     }
 
-    fpu_restore(next->fpu);
+    fpu_restore(next_fpu);
 
-    context_load(next->regs);
+    if (next_vmc) {
+        uint64_t pml4_phys = VIRT_TO_PHYSICAL((uint64_t)next_vmc->pml4_table);
+        vmc_switch(next_vmc);
+        _load_pml4((uint64_t *)pml4_phys);
+    }
+
+    context_load(&run_ctx);
     __builtin_unreachable();
 }

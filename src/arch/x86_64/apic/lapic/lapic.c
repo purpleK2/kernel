@@ -41,7 +41,7 @@ uint64_t lapic_read_reg(uint64_t reg) {
 }
 
 uint64_t lapic_get_id() {
-    return lapic_read_reg(LAPIC_ID_REG);
+    return (lapic_read_reg(LAPIC_ID_REG) >> 24) & 0xFF;
 }
 
 void lapic_send_eoi() {
@@ -145,7 +145,7 @@ void lapic_timer_init(void) {
                         lapic_timer_handler);
 
     uint32_t count = lapic_timer_ticks_per_ms * CONFIG_SCHED_TIMER_INTERVAL_MS;
-    
+
     lapic_write_reg(LAPIC_TIMER_INIT_CNT, count);
 
     lapic_write_reg(LAPIC_TIMER_REG,

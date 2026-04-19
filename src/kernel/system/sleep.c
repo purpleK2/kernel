@@ -36,9 +36,9 @@ int do_nanosleep(const timespec_t *req, timespec_t *rem) {
     registers_t *ctx = get_syscall_context();
     if (!ctx)
         return -EFAULT;
-    
-    uint64_t ticks = req->tv_sec * TICKS_PER_SEC;
-    ticks += (uint64_t)req->tv_nsec / NS_PER_TICK;
+
+    uint64_t ticks  = req->tv_sec * TICKS_PER_SEC;
+    ticks          += (uint64_t)req->tv_nsec / NS_PER_TICK;
     if (((uint64_t)req->tv_nsec % NS_PER_TICK) != 0)
         ticks++;
 

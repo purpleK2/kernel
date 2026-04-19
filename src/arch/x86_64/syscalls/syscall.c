@@ -6,8 +6,8 @@
 #include "paging/paging.h"
 #include "scheduler/execve.h"
 #include "structures/futex.h"
-#include "user/user.h"
 #include "uaccess.h"
+#include "user/user.h"
 
 #include <fs/fd.h>
 #include <fs/file_io.h>
@@ -21,8 +21,8 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <util/macro.h>
 #include <system/stdio.h>
+#include <util/macro.h>
 
 static registers_t *current_syscall_ctx[256];
 
@@ -54,7 +54,7 @@ int sys_open(const char __user *path, int flags, mode_t mode) {
     if (copy_from_user(kpath, path, sizeof(kpath)) != 0) {
         return -EFAULT;
     }
-        kpath[sizeof(kpath) - 1] = '\0';
+    kpath[sizeof(kpath) - 1] = '\0';
 
     fileio_t *file = open(kpath, flags, mode);
     if (!file) {
@@ -151,7 +151,7 @@ int sys_close(int fd) {
     } else {
         close(e->ptr);
     }
-    
+
     fd_free(&current->fd_table, fd);
 
     return 0;
@@ -221,17 +221,18 @@ int sys_dup(int fd, int newfd) {
 
     int result_fd;
     if (newfd >= 0) {
-        if ((size_t)newfd < current->fd_table.size && 
+        if ((size_t)newfd < current->fd_table.size &&
             current->fd_table.entries[newfd].type != FD_NONE) {
             sys_close(newfd);
         }
 
         while ((size_t)newfd >= current->fd_table.size) {
-            size_t new_size = current->fd_table.size ? current->fd_table.size * 2 : 8;
+            size_t new_size =
+                current->fd_table.size ? current->fd_table.size * 2 : 8;
             if (new_size <= (size_t)newfd) {
                 new_size = (size_t)newfd + 1;
             }
-            fd_entry_t *n = krealloc(current->fd_table.entries, 
+            fd_entry_t *n = krealloc(current->fd_table.entries,
                                      new_size * sizeof(fd_entry_t));
             if (!n) {
                 kfree(new_file);
@@ -239,15 +240,15 @@ int sys_dup(int fd, int newfd) {
             }
             for (size_t i = current->fd_table.size; i < new_size; i++) {
                 n[i].type = FD_NONE;
-                n[i].ptr = NULL;
+                n[i].ptr  = NULL;
             }
             current->fd_table.entries = n;
-            current->fd_table.size = new_size;
+            current->fd_table.size    = new_size;
         }
 
         current->fd_table.entries[newfd].type = FD_FILE;
-        current->fd_table.entries[newfd].ptr = new_file;
-        result_fd = newfd;
+        current->fd_table.entries[newfd].ptr  = new_file;
+        result_fd                             = newfd;
     } else {
         result_fd = fd_alloc(&current->fd_table, FD_FILE, new_file);
         if (result_fd < 0) {
@@ -278,19 +279,28 @@ int sys_fork(void) {
     if (child_pid < 0) {
         return -EFAULT;
     }
- 
+
     ctx->rax = child_pid;
     return child_pid;
 }
 
-int sys_getuid(void)  { return get_current_cred()->uid; }
-int sys_geteuid(void) { return get_current_cred()->euid; }
-int sys_getgid(void)  { return get_current_cred()->gid; }
-int sys_getegid(void) { return get_current_cred()->egid; }
+int sys_getuid(void) {
+    return get_current_cred()->uid;
+}
+int sys_geteuid(void) {
+    return get_current_cred()->euid;
+}
+int sys_getgid(void) {
+    return get_current_cred()->gid;
+}
+int sys_getegid(void) {
+    return get_current_cred()->egid;
+}
 
 int sys_getresuid(uid_t __user *ruid, uid_t __user *euid, uid_t __user *suid) {
     user_cred_t *c = get_current_cred();
-    if (!ruid || !euid || !suid) return -1;
+    if (!ruid || !euid || !suid)
+        return -1;
 
     if (copy_to_user(ruid, &c->uid, sizeof(uid_t)) != 0)
         return -EFAULT;
@@ -304,7 +314,8 @@ int sys_getresuid(uid_t __user *ruid, uid_t __user *euid, uid_t __user *suid) {
 
 int sys_getresgid(gid_t __user *rgid, gid_t __user *egid, gid_t __user *sgid) {
     user_cred_t *c = get_current_cred();
-    if (!rgid || !egid || !sgid) return -1;
+    if (!rgid || !egid || !sgid)
+        return -1;
 
     if (copy_to_user(rgid, &c->gid, sizeof(gid_t)) != 0)
         return -EFAULT;
@@ -337,9 +348,7 @@ int sys_setuid(uid_t uid) {
 int sys_seteuid(uid_t euid) {
     user_cred_t *c = get_current_cred();
 
-    if (is_privileged() ||
-        euid == c->uid ||
-        euid == c->suid) {
+    if (is_privileged() || euid == c->uid || euid == c->suid) {
         c->euid = euid;
         return 0;
     }
@@ -351,12 +360,8 @@ int sys_setreuid(uid_t ruid, uid_t euid) {
     user_cred_t *c = get_current_cred();
 
     if (!is_privileged()) {
-        if ((ruid != (uid_t)-1 &&
-             ruid != c->uid &&
-             ruid != c->euid) ||
-            (euid != (uid_t)-1 &&
-             euid != c->uid &&
-             euid != c->euid &&
+        if ((ruid != (uid_t)-1 && ruid != c->uid && ruid != c->euid) ||
+            (euid != (uid_t)-1 && euid != c->uid && euid != c->euid &&
              euid != c->suid))
             return -EACCES;
     }
@@ -376,24 +381,21 @@ int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid) {
     user_cred_t *c = get_current_cred();
 
     if (!is_privileged()) {
-        if ((ruid != (uid_t)-1 &&
-             ruid != c->uid &&
-             ruid != c->euid &&
+        if ((ruid != (uid_t)-1 && ruid != c->uid && ruid != c->euid &&
              ruid != c->suid) ||
-            (euid != (uid_t)-1 &&
-             euid != c->uid &&
-             euid != c->euid &&
+            (euid != (uid_t)-1 && euid != c->uid && euid != c->euid &&
              euid != c->suid) ||
-            (suid != (uid_t)-1 &&
-             suid != c->uid &&
-             suid != c->euid &&
+            (suid != (uid_t)-1 && suid != c->uid && suid != c->euid &&
              suid != c->suid))
             return -EACCES;
     }
 
-    if (ruid != (uid_t)-1) c->uid  = ruid;
-    if (euid != (uid_t)-1) c->euid = euid;
-    if (suid != (uid_t)-1) c->suid = suid;
+    if (ruid != (uid_t)-1)
+        c->uid = ruid;
+    if (euid != (uid_t)-1)
+        c->euid = euid;
+    if (suid != (uid_t)-1)
+        c->suid = suid;
 
     return 0;
 }
@@ -419,9 +421,7 @@ int sys_setgid(gid_t gid) {
 int sys_setegid(gid_t egid) {
     user_cred_t *c = get_current_cred();
 
-    if (is_privileged() ||
-        egid == c->gid ||
-        egid == c->sgid) {
+    if (is_privileged() || egid == c->gid || egid == c->sgid) {
         c->egid = egid;
         return 0;
     }
@@ -433,12 +433,8 @@ int sys_setregid(gid_t rgid, gid_t egid) {
     user_cred_t *c = get_current_cred();
 
     if (!is_privileged()) {
-        if ((rgid != (gid_t)-1 &&
-             rgid != c->gid &&
-             rgid != c->egid) ||
-            (egid != (gid_t)-1 &&
-             egid != c->gid &&
-             egid != c->egid &&
+        if ((rgid != (gid_t)-1 && rgid != c->gid && rgid != c->egid) ||
+            (egid != (gid_t)-1 && egid != c->gid && egid != c->egid &&
              egid != c->sgid))
             return -EACCES;
     }
@@ -458,37 +454,36 @@ int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
     user_cred_t *c = get_current_cred();
 
     if (!is_privileged()) {
-        if ((rgid != (gid_t)-1 &&
-             rgid != c->gid &&
-             rgid != c->egid &&
+        if ((rgid != (gid_t)-1 && rgid != c->gid && rgid != c->egid &&
              rgid != c->sgid) ||
-            (egid != (gid_t)-1 &&
-             egid != c->gid &&
-             egid != c->egid &&
+            (egid != (gid_t)-1 && egid != c->gid && egid != c->egid &&
              egid != c->sgid) ||
-            (sgid != (gid_t)-1 &&
-             sgid != c->gid &&
-             sgid != c->egid &&
+            (sgid != (gid_t)-1 && sgid != c->gid && sgid != c->egid &&
              sgid != c->sgid))
             return -EACCES;
     }
 
-    if (rgid != (gid_t)-1) c->gid  = rgid;
-    if (egid != (gid_t)-1) c->egid = egid;
-    if (sgid != (gid_t)-1) c->sgid = sgid;
+    if (rgid != (gid_t)-1)
+        c->gid = rgid;
+    if (egid != (gid_t)-1)
+        c->egid = egid;
+    if (sgid != (gid_t)-1)
+        c->sgid = sgid;
 
     return 0;
 }
 
-int sys_mount(const char __user *device, const char __user *fstype, const char __user *path, int flags, void __user *data) {
+int sys_mount(const char __user *device, const char __user *fstype,
+              const char __user *path, int flags, void __user *data) {
     UNUSED(flags);
 
-    char    kernel_device[4096];
-    char    kernel_fstype[4096];
-    char    kernel_path[4096];
-    char    kernel_data[4096];
+    char kernel_device[4096];
+    char kernel_fstype[4096];
+    char kernel_path[4096];
+    char kernel_data[4096];
 
-    size_t len = strncpy_from_user(kernel_device, device, sizeof(kernel_device));
+    size_t len =
+        strncpy_from_user(kernel_device, device, sizeof(kernel_device));
     if (len == (size_t)-1) {
         return -EFAULT;
     }
@@ -512,7 +507,8 @@ int sys_mount(const char __user *device, const char __user *fstype, const char _
         }
     }
 
-    vfs_t *ret_vfs = vfs_mount(kernel_device, kernel_fstype, kernel_path, kernel_data);
+    vfs_t *ret_vfs =
+        vfs_mount(kernel_device, kernel_fstype, kernel_path, kernel_data);
     if (!ret_vfs || !is_addr_mapped((uintptr_t)ret_vfs)) {
         return -EFAULT;
     }
@@ -549,7 +545,7 @@ int sys_opendir(const char __user *path) {
         return -ENOTDIR;
     }
 
-    size_t cap = 256;
+    size_t cap     = 256;
     dirent_t *ents = kmalloc(sizeof(dirent_t) * cap);
 
     size_t count = cap;
@@ -558,14 +554,14 @@ int sys_opendir(const char __user *path) {
     if (ret != EOK) {
         vnode_unref(vn);
         kfree(ents);
-        return -ret; 
+        return -ret;
     }
 
-    dir_handle_t *dh = kmalloc(sizeof(dir_handle_t));
-    dh->vnode   = vn;
-    dh->entries = ents;
-    dh->count   = count;
-    dh->index   = 0;
+    dir_handle_t *dh    = kmalloc(sizeof(dir_handle_t));
+    dh->vnode           = vn;
+    dh->entries         = ents;
+    dh->count           = count;
+    dh->index           = 0;
     dh->syscall_ret_num = 1;
 
     int fd = fd_alloc(&get_current_pcb()->fd_table, FD_DIR, dh);
@@ -583,12 +579,12 @@ int sys_readdir(int fd, void __user *buf, size_t max_size) {
     }
 
     size_t bytes_written = 0;
-    char *out = (char *)buf;
+    char *out            = (char *)buf;
 
     while (dh->index < dh->count) {
         dirent_t *entry = &dh->entries[dh->index];
 
-        size_t name_len = strlen(entry->d_name);
+        size_t name_len   = strlen(entry->d_name);
         size_t entry_size = offsetof(dirent_t, d_name) + name_len + 1;
 
         entry_size = (entry_size + 7) & ~7UL;
@@ -671,7 +667,8 @@ int sys_symlink(const char __user *target, const char __user *linkpath) {
     }
     kernel_target[sizeof(kernel_target) - 1] = '\0';
 
-    if (strncpy_from_user(kernel_linkpath, linkpath, sizeof(kernel_linkpath)) < 0) {
+    if (strncpy_from_user(kernel_linkpath, linkpath, sizeof(kernel_linkpath)) <
+        0) {
         return -EFAULT;
     }
     kernel_linkpath[sizeof(kernel_linkpath) - 1] = '\0';
@@ -699,7 +696,8 @@ int sys_readlink(const char __user *path, char __user *buf, size_t size) {
     return ret;
 }
 
-long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd,
+              off_t offset) {
     pcb_t *current = get_current_pcb();
     if (!current || !current->vmc) {
         return (long)(uintptr_t)MAP_FAILED;
@@ -718,7 +716,8 @@ long sys_mmap(void __user *addr, size_t length, int prot, int flags, int fd, off
         vnode = (vnode_t *)file->private;
     }
 
-    void *result = do_mmap(current->vmc, addr, length, prot, flags, vnode, offset);
+    void *result =
+        do_mmap(current->vmc, addr, length, prot, flags, vnode, offset);
     return (long)(uintptr_t)result;
 }
 
@@ -762,7 +761,7 @@ int sys_pipe(int *user_fds) {
 
     pcb_t *pcb = get_current_pcb();
 
-    int fd_read = -1;
+    int fd_read  = -1;
     int fd_write = -1;
 
     fd_read = fd_alloc(&pcb->fd_table, FD_FILE, ends[0]);
@@ -774,7 +773,7 @@ int sys_pipe(int *user_fds) {
         goto fail;
     }
 
-    int kfds[2] = { fd_read, fd_write };
+    int kfds[2] = {fd_read, fd_write};
 
     if (copy_to_user(user_fds, kfds, sizeof(kfds)) < 0)
         goto fail;
@@ -800,7 +799,7 @@ int sys_nanosleep(const void __user *req, void __user *rem) {
         return -EFAULT;
 
     timespec_t krem = {0, 0};
-    int ret = do_nanosleep(&kreq, &krem);
+    int ret         = do_nanosleep(&kreq, &krem);
 
     if (rem && ret != 0) {
         copy_to_user(rem, &krem, sizeof(timespec_t));
@@ -814,7 +813,8 @@ int64_t sys_waitpid(int pid, int __user *status, int options) {
     return ret;
 }
 
-int64_t sys_wait4(int pid, int __user *status, int options, void __user *rusage) {
+int64_t sys_wait4(int pid, int __user *status, int options,
+                  void __user *rusage) {
     (void)rusage;
     return sys_waitpid(pid, status, options);
 }
@@ -837,7 +837,7 @@ int64_t sys_getpgrp(void) {
     }
     return current->pgid;
 }
-    
+
 int64_t sys_setpgid(int pid, int pgid) {
     pcb_t *current = get_current_pcb();
     if (!current) {
@@ -845,7 +845,7 @@ int64_t sys_setpgid(int pid, int pgid) {
     }
 
     pcb_t *target;
-    
+
     if (pid == 0) {
         target = current;
     } else {
@@ -853,11 +853,11 @@ int64_t sys_setpgid(int pid, int pgid) {
         if (!target) {
             return -ESRCH;
         }
-        
+
         if (target != current && target->parent != current) {
             return -ESRCH;
         }
-        
+
         if (target->sid != current->sid) {
             return -EPERM;
         }
@@ -876,17 +876,17 @@ int64_t sys_setpgid(int pid, int pgid) {
 
 int64_t sys_getpgid(int pid) {
     pcb_t *target;
-    
+
     if (pid == 0) {
         target = get_current_pcb();
     } else {
         target = pcb_lookup(pid);
     }
-    
+
     if (!target) {
         return -ESRCH;
     }
-    
+
     return target->pgid;
 }
 
@@ -904,8 +904,8 @@ int64_t sys_setsid(void) {
         return -EPERM;
     }
 
-    current->sid = current->pid;
-    current->pgid = current->pid;
+    current->sid               = current->pid;
+    current->pgid              = current->pid;
     current->is_session_leader = 1;
 
     return current->sid;
@@ -913,17 +913,17 @@ int64_t sys_setsid(void) {
 
 int64_t sys_getsid(int pid) {
     pcb_t *target;
-    
+
     if (pid == 0) {
         target = get_current_pcb();
     } else {
         target = pcb_lookup(pid);
     }
-    
+
     if (!target) {
         return -ESRCH;
     }
-    
+
     return target->sid;
 }
 
@@ -934,7 +934,7 @@ int sys_settls(void __user *tlsptr) {
     }
 
     thread->tls.base_virt = tlsptr;
-    thread->tls_ptr = (user_tls_t *)tlsptr;
+    thread->tls_ptr       = (user_tls_t *)tlsptr;
 
     _cpu_set_msr(0xC0000100, (uint64_t)tlsptr);
 
@@ -949,7 +949,7 @@ int sys_poll(void __user *user_fds, size_t nfds, int timeout_ms) {
         return -EINVAL;
 
     size_t fds_size = nfds * sizeof(pollfd_t);
-    pollfd_t *kfds = kmalloc(fds_size);
+    pollfd_t *kfds  = kmalloc(fds_size);
     if (!kfds)
         return -ENOMEM;
 
@@ -983,7 +983,8 @@ int sys_getcwd(void __user *buf, size_t size) {
 
     // No cwd set yet — process is at root
     if (!current->cwd) {
-        if (size < 2) return -ERANGE;
+        if (size < 2)
+            return -ERANGE;
         char root[] = "/";
         if (copy_to_user(buf, root, 2) != 0)
             return -EFAULT;
@@ -1054,7 +1055,8 @@ int sys_chdir(const char __user *path) {
     return 0;
 }
 
-int sys_futex_wait(int __user* uaddr, int expected, const struct timespec __user *timeout) {
+int sys_futex_wait(int __user *uaddr, int expected,
+                   const struct timespec __user *timeout) {
     int val;
 
     if (copy_from_user(&val, uaddr, sizeof(int)) != 0) {
@@ -1076,15 +1078,15 @@ int sys_futex_wait(int __user* uaddr, int expected, const struct timespec __user
             return -EFAULT;
         }
 
-        uint64_t ticks = kts.tv_sec * TICKS_PER_SEC;
-        ticks += (uint64_t)kts.tv_nsec / NS_PER_TICK;
+        uint64_t ticks  = kts.tv_sec * TICKS_PER_SEC;
+        ticks          += (uint64_t)kts.tv_nsec / NS_PER_TICK;
         if (((uint64_t)kts.tv_nsec % NS_PER_TICK) != 0)
             ticks++;
 
         if (ticks == 0 && (kts.tv_sec > 0 || kts.tv_nsec > 0))
             ticks = 1;
 
-        tcb_t *t = get_current_tcb();
+        tcb_t *t       = get_current_tcb();
         t->wakeup_tick = get_ticks() + ticks;
     }
 
@@ -1183,65 +1185,74 @@ int sys_getfdpath(int fd, char __user *buf, size_t size) {
     return (int)path_len;
 }
 
-void* syscall_table[] = {
-    (void*)sys_exit,
-    (void*)sys_open,
-    (void*)sys_read,
-    (void*)sys_write,
-    (void*)sys_close,
-    (void*)sys_ioctl,
-    (void*)sys_seek,
-    (void*)sys_fcntl,
-    (void*)sys_dup,
-    (void*)sys_getpid,
-    (void*)sys_getuid,
-    (void*)sys_geteuid,
-    (void*)sys_getgid,
-    (void*)sys_getegid,
-    (void*)sys_setuid,
-    (void*)sys_seteuid,
-    (void*)sys_setreuid,
-    (void*)sys_setresuid,
-    (void*)sys_getresuid,
-    (void*)sys_setgid,
-    (void*)sys_setegid,
-    (void*)sys_setregid,
-    (void*)sys_setresgid,
-    (void*)sys_getresgid,
-    (void*)sys_fork,
-    (void*)sys_mount,
-    (void*)sys_umount,
-    (void*)sys_opendir,
-    (void*)sys_readdir,
-    (void*)sys_closedir,
-    (void*)sys_mkdir,
-    (void*)sys_create,
-    (void*)sys_rmdir,
-    (void*)sys_remove,
-    (void*)sys_symlink,
-    (void*)sys_readlink,
-    (void*)sys_mmap,
-    (void*)sys_munmap,
-    (void*)sys_mprotect,
-    (void*)sys_msync,
-    (void*)sys_pipe,
-    (void*)sys_nanosleep,
-    (void*)sys_execve,
-    (void*)sys_waitpid,
-    (void*)sys_wait4,
-    (void*)sys_getppid,
-    (void*)sys_getpgrp,
-    (void*)sys_setpgid,
-    (void*)sys_getpgid,
-    (void*)sys_setsid,
-    (void*)sys_getsid,
-    (void*)sys_settls,
-    (void*)sys_poll,
-    (void*)sys_getcwd,
-    (void*)sys_futex_wait,
-    (void*)sys_futex_wake,
-    (void*)sys_chdir,
-    (void*)sys_stat,
-    (void*)sys_setstat,
-    (void*)sys_getfdpath,
+void *syscall_table[] = {
+    (void *)sys_exit,
+    (void *)sys_open,
+    (void *)sys_read,
+    (void *)sys_write,
+    (void *)sys_close,
+    (void *)sys_ioctl,
+    (void *)sys_seek,
+    (void *)sys_fcntl,
+    (void *)sys_dup,
+    (void *)sys_getpid,
+    (void *)sys_getuid,
+    (void *)sys_geteuid,
+    (void *)sys_getgid,
+    (void *)sys_getegid,
+    (void *)sys_setuid,
+    (void *)sys_seteuid,
+    (void *)sys_setreuid,
+    (void *)sys_setresuid,
+    (void *)sys_getresuid,
+    (void *)sys_setgid,
+    (void *)sys_setegid,
+    (void *)sys_setregid,
+    (void *)sys_setresgid,
+    (void *)sys_getresgid,
+    (void *)sys_fork,
+    (void *)sys_mount,
+    (void *)sys_umount,
+    (void *)sys_opendir,
+    (void *)sys_readdir,
+    (void *)sys_closedir,
+    (void *)sys_mkdir,
+    (void *)sys_create,
+    (void *)sys_rmdir,
+    (void *)sys_remove,
+    (void *)sys_symlink,
+    (void *)sys_readlink,
+    (void *)sys_mmap,
+    (void *)sys_munmap,
+    (void *)sys_mprotect,
+    (void *)sys_msync,
+    (void *)sys_pipe,
+    (void *)sys_nanosleep,
+    (void *)sys_execve,
+    (void *)sys_waitpid,
+    (void *)sys_wait4,
+    (void *)sys_getppid,
+    (void *)sys_getpgrp,
+    (void *)sys_setpgid,
+    (void *)sys_getpgid,
+    (void *)sys_setsid,
+    (void *)sys_getsid,
+    (void *)sys_settls,
+    (void *)sys_poll,
+    (void *)sys_getcwd,
+    (void *)sys_futex_wait,
+    (void *)sys_futex_wake,
+    (void *)sys_chdir,
+    (void *)sys_stat,
+    (void *)sys_setstat,
+    (void *)sys_getfdpath,
+    (void *)sys_rt_sigaction,
+    (void *)sys_rt_sigprocmask,
+    (void *)sys_rt_sigpending,
+    (void *)sys_rt_sigsuspend,
+    (void *)sys_rt_sigtimedwait,
+    (void *)sys_rt_sigreturn,
+    (void *)sys_kill,
+    (void *)sys_tgkill,
+    (void *)sys_rt_sigqueueinfo,
 };

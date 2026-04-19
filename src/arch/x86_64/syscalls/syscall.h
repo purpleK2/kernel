@@ -6,6 +6,7 @@
 #include "uaccess.h"
 #include "system/sleep.h"
 #include "fs/vfs/vfs.h"
+#include <ipc/signals.h>
 
 #define SYS_exit       0
 #define SYS_open       1
@@ -67,6 +68,15 @@
 #define SYS_stat       57
 #define SYS_setstat    58
 #define SYS_getfdpath  59
+#define SYS_rt_sigaction 60
+#define SYS_rt_sigprocmask 61
+#define SYS_rt_sigpending 62
+#define SYS_rt_sigsuspend 63
+#define SYS_rt_sigtimedwait 64
+#define SYS_rt_sigreturn 65
+#define SYS_kill 66
+#define SYS_tgkill 67
+#define SYS_rt_sigqueueinfo 68
 
 void set_syscall_context(registers_t *ctx);
 registers_t *get_syscall_context(void);
@@ -130,5 +140,15 @@ int sys_chdir(const char __user *path);
 int sys_stat(const char __user *path, struct stat __user *statbuf);
 int sys_setstat(const char __user *path, const struct stat __user *statbuf);
 int sys_getfdpath(int fd, char __user *buf, size_t size);
+int sys_rt_sigaction(int sig, const user_sigaction_t *act, user_sigaction_t *oact, size_t sigsetsize);
+int sys_rt_sigprocmask(int how, const user_sigset_t *set, user_sigset_t *oldset, size_t sigsetsize);
+int sys_rt_sigpending(user_sigset_t *set, size_t sigsetsize);
+int sys_rt_sigsuspend(const user_sigset_t *set, size_t sigsetsize);
+int sys_rt_sigtimedwait(const user_sigset_t *set, user_siginfo_t *info,
+	const timespec_t *timeout, size_t sigsetsize);
+int sys_rt_sigreturn(void);
+int sys_kill(int pid, int sig);
+int sys_tgkill(int tgid, int tid, int sig);
+int sys_rt_sigqueueinfo(int pid, int sig, const user_siginfo_t *info);
 
 #endif // SYSCALL_H
