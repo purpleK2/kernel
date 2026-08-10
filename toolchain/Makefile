@@ -1,7 +1,7 @@
 ARCH ?= x86_64
 CPU_CORES ?= $(shell nproc)
 
-BINUTILS_VERSION = 2.43
+BINUTILS_VERSION = 2.44
 GCC_VERSION = 14.2.0
 
 BINUTILS_URL = https://ftp.gnu.org/gnu/binutils/binutils-$(BINUTILS_VERSION).tar.xz
