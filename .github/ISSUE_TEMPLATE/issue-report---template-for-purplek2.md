@@ -12,9 +12,8 @@ assignees: ''
  - OS codename: [e.g. Windows 10, Arch Linux, macOS Ventura]
  - OS Build/version: [eg. Windows 10 22H2 19045, Linux 6.15/Ubuntu 25.04, macOS Ventura 22A380]
  - GCC/BInutils toolchain version: [eg. 14.2.0/2.43, 15.1.0/2.44]
-
-*the following field must always be filled up*
- - purpleK2 `code branch/commit` OR version: [eg. `main/d322199` or, when we will have actual versions, `v0.1-alpha.3`]
+(*the following field **must** always be filled up*)
+ - purpleK2 `code branch/commit` AND/OR version: (eg. `main/d322199` and/or, when we will have actual versions, `v0.1-alpha.3`)
 
 **Describe the bug**
 A more detailed description of what the bug is.
