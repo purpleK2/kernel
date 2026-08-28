@@ -2,7 +2,7 @@
 #define CPU_H
 
 /*
- * Halt and catch fire. We should NOT return from this function.
+ * Halt and catch fire. Do NOT return from this function.
  */
 __attribute__((noreturn)) extern void _hcf();
 
