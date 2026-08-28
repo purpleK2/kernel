@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/osdev0/freestanding-c-hdrs.git
+revision = HEAD
+patch_directory = freestanding-headers
+
+[provide]
+dependency_names = freestanding_hdrs

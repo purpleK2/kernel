@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/Limine-Bootloader/limine-protocol.git
+revision = HEAD
+patch_directory = limine-protocol
+
+[provide]
+dependency_names = limine_dep
