@@ -6,6 +6,10 @@ project('limine-meson',
 cc = meson.get_compiler('c')
 
 target_arch = host_machine.cpu_family()
+if (target_arch != 'x86_64')
+  warning('Architectures other than x86_64 are not fully implemented and are prone to build errors.')
+endif
+
 archcommon_inc = include_directories('include/arch/common')
 
 summary('Build target', target_arch, section: 'Build information')
