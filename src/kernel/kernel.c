@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include <limine.h>
 
@@ -62,6 +63,8 @@ void kmain(void) {
             fb_ptr[y * (framebuffer->pitch / 4) + x] = (nY << 8) | nX;
         }
     }
+
+    debugf("Hello from pk2!\n");
 
     // We're done, just hang...
     _hcf();
