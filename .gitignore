@@ -2,8 +2,8 @@
 build
 
 # Meson subprojects
-subprojects
-!subprojects/*.wrap
-!subprojects/packagefiles
+subprojects/freestanding-headers
+subprojects/limine-protocol
+subprojects/nanoprintf
 
 .cache

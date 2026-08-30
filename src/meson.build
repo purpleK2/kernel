@@ -34,7 +34,7 @@ subdir('arch'/target_arch)
 if (target_arch == 'x86_64' )
   executable('kernel',
             sources,
-            dependencies: [limine_proto, freestanding_hdrs],
+            dependencies: [limine_proto, freestanding_hdrs, nanoprintf],
             include_directories: inc,
             c_args: c_args,
             nasm_args: nasm_args,
@@ -43,7 +43,7 @@ if (target_arch == 'x86_64' )
 else
   executable('kernel',
             sources,
-            dependencies: [limine_proto, freestanding_hdrs],
+            dependencies: [limine_proto, freestanding_hdrs, nanoprintf],
             include_directories: inc,
             c_args: c_args,
             link_args: linker_flags,

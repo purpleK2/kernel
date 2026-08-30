@@ -20,6 +20,7 @@ add_global_arguments('-pipe',
 
 limine_proto = dependency('limine-protocol', required: true)
 freestanding_hdrs = dependency('freestanding_hdrs', required: true)
+nanoprintf = dependency('nanoprintf', required: true)
 
 # build kernel executable.
 subdir('src')
