@@ -10,7 +10,7 @@ if (target_arch != 'x86_64')
   warning('Architectures other than x86_64 are not fully implemented and are prone to build errors.')
 endif
 
-inc = include_directories('include/arch/common', 'include/kernel')
+inc = include_directories('include/arch/common', 'include/arch'/target_arch, 'include/kernel')
 
 summary('Build target', target_arch, section: 'Build information')
 
