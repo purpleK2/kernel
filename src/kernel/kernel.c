@@ -65,6 +65,10 @@ void kmain(void) {
     }
 
     debugf("Hello from pk2!\n");
+    debugf_error("ERROR\n");
+    debugf_warn("WARNING\n");
+    debugf_ok("SUCCESS\n");
+    debugf_trace("TRACE\n");
 
     // We're done, just hang...
     _hcf();
