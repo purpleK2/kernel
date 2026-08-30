@@ -1,8 +1,6 @@
-arch_sources = [
+sources +=  [
   'arch/riscv64/cpu.S'
 ]
-
-sources += arch_sources
 
 if (not cc.has_argument('-march=rv64imac_zicsr_zifencei'))
   error('C Compiler does not support riscv64 (rv64imac_zicsr_zifencei) target!')

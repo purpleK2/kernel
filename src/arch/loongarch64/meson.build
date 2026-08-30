@@ -1,8 +1,6 @@
-arch_sources = [
+sources += [
   'arch/loongarch64/cpu.S'
 ]
-
-sources += arch_sources
 
 if (not cc.has_argument('-march=loongarch64'))
   error('C Compiler does not support loongarch64 (loongarch64) target!')

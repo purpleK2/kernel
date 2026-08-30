@@ -1,8 +1,6 @@
-arch_sources = [
+sources += [
   'arch/aarch64/cpu.S'
 ]
-
-sources += arch_sources
 
 if (not cc.has_argument('-march=armv8-a+nofp+nosimd'))
   error('C Compiler does not support aarch64 (armv8-a+nofp+nosimd) target!')
