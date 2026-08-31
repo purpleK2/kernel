@@ -6,7 +6,11 @@ sources += [
   'arch/x86_64/debug.c',
   'arch/x86_64/arch.c',
   'arch/x86_64/gdt/gdt.c',
-  'arch/x86_64/gdt/gdt.asm'
+  'arch/x86_64/gdt/gdt.asm',
+  'arch/x86_64/interrupts/idt.c',
+  'arch/x86_64/interrupts/isr.c',
+  'arch/x86_64/interrupts/isr.asm',
+  'arch/x86_64/interrupts/idt.asm'
 ]
 
 if (not cc.has_argument('-march=x86-64'))
