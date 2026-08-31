@@ -55,7 +55,7 @@ isr_stub_%+i:
     %if i <> 8 && i <> 10 && i <> 11 && i <> 12 && i <> 13 && i <> 14 && i <> 17 && i <> 21
     push 0              ; dummy error code for exceptions without error codes
     %endif
-    push %+i             ; interrupt number
+    push i             ; interrupt number
     jmp isr_common
 %assign i i+1
 %endrep
