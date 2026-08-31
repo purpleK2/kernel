@@ -32,5 +32,6 @@ struct interrupt_ctx {
     uint64_t ss;
 } PACKED;
 
+typedef void (*isr_handler_t)(struct interrupt_ctx*);
 
 #endif
