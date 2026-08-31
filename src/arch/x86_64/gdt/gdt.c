@@ -18,7 +18,7 @@ void gdt_init() {
 
     gdtr.size = sizeof(gdt) - 1;
     gdtr.pointer = (uint64_t)&gdt;
-    debugf_trace("Loading GDTR %p\n", &gdtr);
+    debugf_trace("Loading GDTR %#p\n", &gdtr);
     _lgdt(&gdtr);
     _reload_segments(GDT_CODE_SEGMENT, GDT_DATA_SEGMENT);
 }
