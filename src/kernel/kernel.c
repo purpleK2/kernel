@@ -41,12 +41,14 @@ void kmain(void) {
     _disable_interrupts();
     // Ensure the bootloader actually understands our base revision (see spec).
     if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
+        debugf_error("Limine revision %d not supported!\n", limine_base_revision[2]);
         _hcf();
     }
 
     // Ensure we got a framebuffer.
     if (framebuffer_request.response == NULL
      || framebuffer_request.response->framebuffer_count < 1) {
+         debugf_error("No framebuffers available!\n");
         _hcf();
     }
 
