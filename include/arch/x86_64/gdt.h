@@ -10,12 +10,11 @@
 #define GDT_USER_CODE_SEGMENT 0x18
 #define GDT_USER_DATA_SEGMENT 0x20
 
-#define GDT_LIMIT_LOW(limit)  (limit & 0xFFFF)
-#define GDT_BASE_LOW(base)    (base & 0xFFFF)
-#define GDT_BASE_MIDDLE(base) ((base >> 16) & 0xFF)
-#define GDT_FLAGS_HI_LIMIT(limit, flags)                                       \
-    (((limit >> 16) & 0xF) | ((flags << 4) & 0xF0))
-#define GDT_BASE_HIGH(base) ((base >> 24) & 0xFF)
+#define GDT_LIMIT_LOW(limit)                (limit & 0xFFFF)
+#define GDT_BASE_LOW(base)                  (base & 0xFFFF)
+#define GDT_BASE_MIDDLE(base)               ((base >> 16) & 0xFF)
+#define GDT_FLAGS_HI_LIMIT(limit, flags)    (((limit >> 16) & 0xF) | ((flags << 4) & 0xF0))
+#define GDT_BASE_HIGH(base)                 ((base >> 24) & 0xFF)
 #define GDT_ENTRY(base, limit, access, flags)                                  \
     {GDT_LIMIT_LOW(limit),                                                     \
      GDT_BASE_LOW(base),                                                       \
