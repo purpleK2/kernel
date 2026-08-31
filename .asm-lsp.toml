@@ -1,0 +1,22 @@
+[default_config]
+version = "0.10.1"
+assembler = "nasm"
+instruction_set = "x86-64"
+
+[[project]]
+path = "src/arch/riscv64"
+version = "0.10.1"
+assembler = "gas"
+instruction_set = "riscv"
+
+[[project]]
+path = "src/arch/aarch64"
+version = "0.10.1"
+assembler = "gas"
+instruction_set = "arm64"
+
+[[project]]
+path = "src/arch/loongarch64"
+version = "0.10.1"
+assembler = "gas"
+instruction_set = "arm64"
