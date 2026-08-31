@@ -6,6 +6,7 @@
 #include <limine.h>
 
 #include <cpu.h>
+#include <arch.h>
 
 // Set the base revision to 6, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -70,7 +71,9 @@ void kmain(void) {
     debugf_error("ERROR\n");
     debugf_warn("WARNING\n");
     debugf_ok("SUCCESS\n");
-    debugf_trace("TRACE\n");
+    debugf_trace("trace\n");
+
+    arch_entry();
 
     // We're done, just hang...
     _hcf();

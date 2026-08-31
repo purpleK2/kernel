@@ -3,7 +3,10 @@ add_languages('nasm')
 sources += [
   'arch/x86_64/cpu.asm',
   'arch/x86_64/io.asm',
-  'arch/x86_64/debug.c'
+  'arch/x86_64/debug.c',
+  'arch/x86_64/arch.c',
+  'arch/x86_64/gdt/gdt.c',
+  'arch/x86_64/gdt/gdt.asm'
 ]
 
 if (not cc.has_argument('-march=x86-64'))

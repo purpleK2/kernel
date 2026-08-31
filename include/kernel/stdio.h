@@ -8,14 +8,17 @@
 #define ANSI_COLOR_BLUE   "\x1b[38;2;102;163;255m"
 #define ANSI_COLOR_RESET  "\33[0m"
 
+#define ANSI_COLOR(c, s)    c s ANSI_COLOR_RESET
+#define TRACE_FMT(l)        "[ %s():%d::" l " ] "
+
 /*
  * Formatted print to E9.
  */
 int debugf(const char* fmt, ...);
 
-#define debugf_error(fmt, ...)  debugf(ANSI_COLOR_RED fmt ANSI_COLOR_RESET, ##__VA_ARGS__)
-#define debugf_ok(fmt, ...)     debugf(ANSI_COLOR_GREEN fmt ANSI_COLOR_RESET, ##__VA_ARGS__)
-#define debugf_warn(fmt, ...)   debugf(ANSI_COLOR_ORANGE fmt ANSI_COLOR_RESET, ##__VA_ARGS__)
-#define debugf_trace(fmt, ...)   debugf(ANSI_COLOR_GRAY fmt ANSI_COLOR_RESET, ##__VA_ARGS__)
+#define debugf_error(fmt, ...)      debugf(ANSI_COLOR(ANSI_COLOR_RED, TRACE_FMT("ERROR") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debugf_ok(fmt, ...)         debugf(ANSI_COLOR(ANSI_COLOR_GREEN, TRACE_FMT("OK") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debugf_warn(fmt, ...)       debugf(ANSI_COLOR(ANSI_COLOR_ORANGE, TRACE_FMT("WARN") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debugf_trace(fmt, ...)      debugf(ANSI_COLOR(ANSI_COLOR_GRAY, TRACE_FMT("trace") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 #endif
