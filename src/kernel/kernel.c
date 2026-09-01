@@ -26,6 +26,11 @@ LIMINEREQ static volatile struct limine_framebuffer_request framebuffer_request 
     .revision = 0
 };
 
+LIMINEREQ static volatile struct limine_memmap_request memmap_request = {
+    .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0
+};
+
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
 
@@ -35,9 +40,16 @@ static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_
 __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-// The following will be our kernel's entry point.
-// If renaming kmain() to something else, make sure to change the
-// linker script accordingly.
+static const char *memmap_entry_types[9] = {"USABLE",
+                                            "RESERVED",
+                                            "ACPI_RECLAIMABLE",
+                                            "ACPI_NVS",
+                                            "BAD",
+                                            "BOOTLOADER_RECLAIMABLE",
+                                            "KERNEL_AND_MODULES",
+                                            "FRAMEBUFFER",
+                                            "RESERVED_MAPPED"};
+
 void kmain(void) {
     _disable_interrupts();
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -74,6 +86,17 @@ void kmain(void) {
     debugf_trace("trace\n");
 
     arch_entry();
+
+    if (!memmap_request.response || !memmap_request.response->entries) {
+        debugf_panic("No memory map!\n");
+        _hcf();
+    }
+    struct limine_memmap_response* memmap = memmap_request.response;
+    debugf_trace("Limine memory map\n");
+    for (uint64_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry* entry = memmap->entries[i];
+        debugf_trace("\t%#llx-%#llx (%s)\n", entry->base, entry->base + entry->length, memmap_entry_types[entry->type]);
+    }
 
     // We're done, just hang...
     _hcf();
