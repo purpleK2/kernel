@@ -3,6 +3,28 @@
 
 #include <stdint.h>
 
+enum EXCEPTIONS {
+    EXC_DE = 0,
+    EXC_DB = 1,
+    EXC_BP = 3,
+    EXC_OF = 4,
+    EXC_BR = 5,
+    EXC_UD = 6,
+    EXC_NM = 7,
+    EXC_DF = 8,
+    EXC_TS = 10,
+    EXC_NP = 11,
+    EXC_SS = 12,
+    EXC_GP = 13,
+    EXC_PF = 14,
+    EXC_MF = 16,
+    EXC_AC = 17,
+    EXC_MC = 18,
+    EXC_XM = 19,
+    EXC_VE = 20,
+    EXC_CP = 21
+};
+
 struct interrupt_ctx {
     uint64_t ds;
     uint64_t r15;
