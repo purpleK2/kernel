@@ -8,6 +8,41 @@
 #include <stdint.h>
 #include <stdio.h>
 
+static const char* exception_strings[32] = {
+    "Divide by zero",
+    "Debug",
+    "Non-maskable Interrupt",
+    "Breakpoint",
+    "Overflow",
+    "BOUND Range Exceeded",
+    "Invalid Opcode",
+    "Device Not Available",
+    "Double Fault",
+    "Coprocessor Segment Overrun",
+    "Invalid TSS",
+    "Segment Not Present",
+    "Stack-segment Fault",
+    "General Protection",
+    "Page Fault",
+    "[INTEL_RESERVED]",
+    "x87 FPU Floating-Point Error",
+    "Alignment Check",
+    "Machine Check",
+    "SIMD Floating-Point Exception",
+    "Virtualization Exception",
+    "Control Protection Exception",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+    "[INTEL_RESERVED]",
+};
+
 static isr_handler_t handlers[IDT_MAX_DESCRIPTORS];
 
 void isr_install_handler(uint16_t interrupt, isr_handler_t handler) {
