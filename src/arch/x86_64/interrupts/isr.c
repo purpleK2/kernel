@@ -62,14 +62,9 @@ void isr_handler(struct interrupt_ctx* ctx) {
     switch (ctx->interrupt) {
         case 0 ... 31:
             _disable_interrupts();
-
-            debugf(ANSI_COLOR_BLUE);
-            debugf("PANIC: Exception %#llx\n", ctx->interrupt);
-            debugf("\terrcode=%#llx\n", ctx->error);
-            debugf(ANSI_COLOR_RESET);
-
+            debuf_panic("Exception %#llx (%s) errcode=%#llx\n", ctx->interrupt, exception_strings[ctx->interrupt], ctx->error);
             _hcf();
-        case 32 ... 255:
+        default:
             debugf_warn("Unhandled interrupt %#llx\n", ctx->interrupt);
     }
 }
