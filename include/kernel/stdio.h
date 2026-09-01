@@ -5,7 +5,7 @@
 #define ANSI_COLOR_GREEN  "\33[32m"
 #define ANSI_COLOR_ORANGE "\33[33m"
 #define ANSI_COLOR_GRAY   "\33[90m"
-#define ANSI_COLOR_BLUE   "\x1b[38;2;102;163;255m"
+#define ANSI_COLOR_PURPLE "\33[0;35m"
 #define ANSI_COLOR_RESET  "\33[0m"
 
 #define ANSI_COLOR(c, s)    c s ANSI_COLOR_RESET
@@ -20,5 +20,6 @@ int debugf(const char* fmt, ...);
 #define debugf_ok(fmt, ...)         debugf(ANSI_COLOR(ANSI_COLOR_GREEN, TRACE_FMT("OK") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define debugf_warn(fmt, ...)       debugf(ANSI_COLOR(ANSI_COLOR_ORANGE, TRACE_FMT("WARN") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define debugf_trace(fmt, ...)      debugf(ANSI_COLOR(ANSI_COLOR_GRAY, TRACE_FMT("trace") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debuf_panic(fmt, ...)       debugf(ANSI_COLOR(ANSI_COLOR_PURPLE, "[ PANIC ] " fmt), ##__VA_ARGS__)
 
 #endif
