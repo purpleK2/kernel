@@ -56,4 +56,11 @@ struct interrupt_ctx {
 
 typedef void (*isr_handler_t)(struct interrupt_ctx*);
 
+/*
+ * Install a handler when an interrupt is fired.
+ * @param interrupt the interrupt
+ * @param handler the handler to be called when interrupt is fired.
+ */
+void isr_install_handler(uint16_t interrupt, isr_handler_t handler);
+
 #endif
