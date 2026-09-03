@@ -19,7 +19,8 @@ sources = [
   'kernel/memory.c',
   'kernel/stdio.c',
   'kernel/assert.c',
-  'kernel/datatypes/llist.c'
+  'kernel/datatypes/llist.c',
+  'kernel/mm/pmm.c'
 ]
 
 linker_script = join_paths(meson.current_source_dir(), 'arch'/target_arch/'linker.ld')

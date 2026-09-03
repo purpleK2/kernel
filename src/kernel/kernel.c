@@ -11,6 +11,8 @@
 #include <assert.h>
 #include <macro.h>
 
+#include <mm/pmm.h>
+
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
 LIMINEREQ static volatile struct limine_framebuffer_request framebuffer_request = {
@@ -87,6 +89,8 @@ void kmain(void) {
 
     assert(hhdm_request.response != NULL);
     struct limine_hhdm_response* hhdm = hhdm_request.response;
+
+    pmm_init(memmap, hhdm->offset);
 
     // We're done, just hang...
     _hcf();
