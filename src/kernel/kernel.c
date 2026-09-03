@@ -23,6 +23,11 @@ LIMINEREQ static volatile struct limine_memmap_request memmap_request = {
     .revision = 0
 };
 
+LIMINEREQ static volatile struct limine_hhdm_request hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
@@ -79,6 +84,9 @@ void kmain(void) {
         struct limine_memmap_entry* entry = memmap->entries[i];
         debugf_trace("\t%#llx-%#llx (%s)\n", entry->base, entry->base + entry->length, memmap_entry_types[entry->type]);
     }
+
+    assert(hhdm_request.response != NULL);
+    struct limine_hhdm_response* hhdm = hhdm_request.response;
 
     // We're done, just hang...
     _hcf();
