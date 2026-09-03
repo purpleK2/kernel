@@ -8,6 +8,7 @@
 #include <cpu.h>
 #include <arch.h>
 
+#include <assert.h>
 #include <macro.h>
 
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -40,18 +41,12 @@ static const char *memmap_entry_types[9] = {"USABLE",
 
 void kmain(void) {
     _disable_interrupts();
-    // Ensure the bootloader actually understands our base revision (see spec).
-    if (LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) == false) {
-        debugf_error("Limine revision %d not supported!\n", limine_base_revision[2]);
-        _hcf();
-    }
 
-    // Ensure we got a framebuffer.
-    if (framebuffer_request.response == NULL
-     || framebuffer_request.response->framebuffer_count < 1) {
-         debugf_error("No framebuffers available!\n");
-        _hcf();
-    }
+    // Ensure the bootloader actually understands our base revision (see spec).
+    assert(LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision) != false);
+    // Check for framebuffers
+    assert(framebuffer_request.response != NULL);
+    assert(framebuffer_request.response->framebuffer_count >= 1);
 
     // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
@@ -75,10 +70,9 @@ void kmain(void) {
 
     arch_entry();
 
-    if (!memmap_request.response || !memmap_request.response->entries) {
-        debugf_panic("No memory map!\n");
-        _hcf();
-    }
+    assert(memmap_request.response != NULL);
+    assert(memmap_request.response->entries != NULL);
+
     struct limine_memmap_response* memmap = memmap_request.response;
     debugf_trace("Limine memory map\n");
     for (uint64_t i = 0; i < memmap->entry_count; i++) {
