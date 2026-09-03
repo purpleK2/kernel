@@ -20,6 +20,6 @@ int debugf(const char* fmt, ...);
 #define debugf_ok(fmt, ...)         debugf(ANSI_COLOR(ANSI_COLOR_GREEN, TRACE_FMT("OK") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define debugf_warn(fmt, ...)       debugf(ANSI_COLOR(ANSI_COLOR_ORANGE, TRACE_FMT("WARN") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define debugf_trace(fmt, ...)      debugf(ANSI_COLOR(ANSI_COLOR_GRAY, TRACE_FMT("trace") fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define debugf_panic(fmt, ...)       debugf(ANSI_COLOR(ANSI_COLOR_PURPLE, "[ PANIC ] " fmt), ##__VA_ARGS__)
+#define debugf_panic(fmt, ...)      debugf(ANSI_COLOR(ANSI_COLOR_PURPLE, "[ PANIC ] " fmt), ##__VA_ARGS__)
 
 #endif
