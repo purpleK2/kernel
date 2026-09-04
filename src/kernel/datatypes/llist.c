@@ -22,6 +22,7 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
     struct ll_node* n_prev = NULL;
 
     for (struct ll_node* n = *root; n != NULL; n = n->next) {
+        // best-fit
         if (n->len >= s && (!best_fit || n->len < best_fit->len)) {
             best_fit = n;
             best_prev = n_prev;
@@ -39,14 +40,19 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
         return alloc(s);    // if possible, allocate a new node from the function
     }
 
-    // Best case: there is a best fit, nothing to do
-    // Eventually shift the node
+    struct ll_node* new_next;   // new best_prev->next node
     if (best_fit->len > s) {
-        struct ll_node* new = (struct ll_node*)(best_fit + s);
-        new->len = best_fit->len - s;
-        new->next = best_fit->next;
-        if (best_prev) best_prev->next = new;
+        // this node still has some space, create a new one after allocated space
+        new_next = (struct ll_node*)(best_fit + s);
+        new_next->len = best_fit->len - s;
+        new_next->next = best_fit->next;
+    } else {
+        // there is no more space in this region
+        new_next = best_fit->next;
     }
+
+    if (best_prev) best_prev->next = new_next;               // link previous node to this one
+    if (*root != new_next && best_fit == *root) *root = new_next; // if the root node changed, write it back
 
     return best_fit;
 }
