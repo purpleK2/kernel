@@ -5,13 +5,19 @@
 
 #include <cpu.h>
 
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 
 #include <datatypes/llist.h>
 
 static struct pmm pmm = {0};
+
+uintptr_t hhdm_physical(uintptr_t v) {
+    return v >= pmm.limine_hhdm_offset ? v - pmm.limine_hhdm_offset : v;
+}
+
+uintptr_t hhdm_virtual(uintptr_t p) {
+    return p < pmm.limine_hhdm_offset ? p + pmm.limine_hhdm_offset : p;
+}
 
 void pmm_init(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t limine_hhdm_offset) {
     assert(memmap != NULL);

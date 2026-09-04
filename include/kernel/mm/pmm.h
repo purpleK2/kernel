@@ -18,6 +18,19 @@ struct pmm {
     size_t used_mem;
 };
 
+/*
+ * Get the physical address from a virtual HH-directly-mapped one.
+ * @param virt virtual HH-directly-mapped address
+ * @returns the virtual address minus the HHDM offset, if virt is larger than it.
+ */
+uintptr_t hhdm_physical(uintptr_t virt);
+/*
+ * Get the HH-directly-mapped address of a physical one.
+ * @param phys physical address
+ * @returns the physical address plus the HHDM offset. It's not guaranteed for it to be present in the page tables.
+ */
+uintptr_t hhdm_virtual(uintptr_t phys);
+
 void pmm_init(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t limine_hhdm_offset);
 
 /*
