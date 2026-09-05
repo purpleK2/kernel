@@ -55,12 +55,12 @@ void* palloc(size_t pages) {
 
     memset(p, 0, s);
     pmm.used_mem += s;
-    debugf_trace("Allocated %zu page%s @ %#llx\n", pages, pages > 1 ? "s": "", (uint64_t)p - pmm.limine_hhdm_offset);
+    debugf_trace("Allocated %zu page%s @ %#llx\n", pages, pages > 1 ? "s": "", (uintptr_t)p - pmm.limine_hhdm_offset);
     return (void*)(p - pmm.limine_hhdm_offset);
 }
 
 void pfree(void* p, size_t pages) {
-    void* p_virt = (void*)(p + pmm.limine_hhdm_offset);
+    void* p_virt = (void*)((uintptr_t)p + pmm.limine_hhdm_offset);
     size_t s = pages * PAGESZ;
 
     llfree(&pmm.head, p_virt, s);

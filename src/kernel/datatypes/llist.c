@@ -1,6 +1,6 @@
 #include <datatypes/llist.h>
 
-#include <stddef.h>
+#include <stdint.h>
 
 void ll_append(struct ll_node** root, struct ll_node* node) {
     if (!root || !node) return;
@@ -43,7 +43,7 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
     struct ll_node* new_next;   // new best_prev->next node
     if (best_fit->len > s) {
         // this node still has some space, create a new one after allocated space
-        new_next = (struct ll_node*)(best_fit + s);
+        new_next = (struct ll_node*)((uintptr_t)best_fit + s);
         new_next->len = best_fit->len - s;
         new_next->next = best_fit->next;
     } else {
@@ -63,7 +63,7 @@ void llfree(struct ll_node** root, void* ptr, size_t s) {
     struct ll_node* new = ptr;
     new->len = s;
 
-    if (new < *root) {
+    if ((uintptr_t)new < (uintptr_t)(*root)) {
         new->next = (*root);
         *root = new;
         return;
