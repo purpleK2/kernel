@@ -69,8 +69,13 @@ void llfree(struct ll_node** root, void* ptr, size_t s) {
         return;
     }
 
-    struct ll_node* new_prev = *root;
-    for (; new_prev != NULL && new_prev < new; new_prev = new_prev->next);
-    new->next = new_prev->next;
-    new->next = new;
+    struct ll_node* n_prev = NULL;
+    struct ll_node* n = *root;
+    for (; n != NULL; n = n->next) {
+        if ((uintptr_t)n > (uintptr_t)new) break;
+        n_prev = n;
+    }
+
+    new->next = n;
+    n_prev->next = new;
 }
