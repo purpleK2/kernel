@@ -5,6 +5,7 @@
 
 #include <cpu.h>
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include <datatypes/llist.h>
@@ -17,6 +18,14 @@ uintptr_t hhdm_physical(uintptr_t v) {
 
 uintptr_t hhdm_virtual(uintptr_t p) {
     return p < pmm.limine_hhdm_offset ? p + pmm.limine_hhdm_offset : p;
+}
+
+void print_pmm_stats() {
+    debugf_trace("Total memory: %zu\n", pmm.total_usable_mem);
+    debugf_trace("PMM init stats:\n");
+    for (struct ll_node* n = pmm.head; n != NULL; n = n->next) {
+        debugf_trace("\tbase:%#llx length:%#zu\n", (uintptr_t)n - pmm.limine_hhdm_offset, n->len);
+    }
 }
 
 void pmm_init(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t limine_hhdm_offset) {
@@ -34,12 +43,6 @@ void pmm_init(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t limine
         node->len = e->length;
         node->next = NULL;
         ll_append(&pmm.head, node);
-    }
-
-    debugf_trace("Total available memory: %zu\n", pmm.total_usable_mem);
-    debugf_trace("PMM init stats:\n");
-    for (struct ll_node* n = pmm.head; n != NULL; n = n->next) {
-        debugf_trace("\tbase:%#llx length:%#zu\n", (uint64_t)n - pmm.limine_hhdm_offset, n->len);
     }
 }
 

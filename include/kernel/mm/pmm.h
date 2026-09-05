@@ -32,6 +32,11 @@ uintptr_t hhdm_physical(uintptr_t virt);
 uintptr_t hhdm_virtual(uintptr_t phys);
 
 /*
+ * Prints PMM stats.
+ */
+void print_pmm_stats();
+
+/*
  * Initialize the required PMM data.
  * @param memmap Limine's memmap response structure.
  * @param limine_hhdm_offset Limine's HHDM offset, used for reading/writing to structs in physical memory.
