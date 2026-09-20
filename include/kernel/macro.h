@@ -10,4 +10,7 @@
 #define ROUND_DOWN(n, a)    ((n) & ~((a) - 1))
 #define ROUND_UP(n, a)      (((n) + ((a) - 1)) & ~((a) - 1))
 
+#define min(a, b)   (a) < (b) ? (a) : (b)
+#define max(a, b)   (a) > (b) ? (a) : (b)
+
 #endif
