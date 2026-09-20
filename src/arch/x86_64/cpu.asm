@@ -43,3 +43,39 @@ _cpuid:
 .nullptr:
     mov rax, -1
     ret
+
+global _get_cr3
+_get_cr3:
+    mov rax, cr3
+    ret
+
+; uint64_t _rdmsr(uint64_t m)
+global _rdmsr
+_rdmsr:
+    ; rdmsr takes the MSR from ECX
+    mov ecx, edi
+
+    xor rax, rax
+    xor rdx, rdx
+    rdmsr
+    ; rax |= (rdx << 32)
+    shl rdx, 32
+    or rax, rdx
+
+    ret
+
+; void _wrmsr(uint64_t m, uint64_t v)
+global _wrmsr
+_wrmsr:
+    mov ecx, edi
+
+    xor rax, rax
+    xor rdx, rdx
+    ; v & 32
+    mov rax, rsi
+    ; v >> 32
+    mov rdx, rax
+    shr rdx, 32
+
+    wrmsr
+    ret
