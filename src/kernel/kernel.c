@@ -12,6 +12,7 @@
 #include <macro.h>
 
 #include <mm/pmm.h>
+#include <paging.h>
 
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -91,6 +92,10 @@ void kmain(void) {
     struct limine_hhdm_response* hhdm = hhdm_request.response;
 
     pmm_init(memmap, hhdm->offset);
+    uintptr_t table;
+    ptable_setup(memmap, hhdm->offset, &table);
+    kprintf_trace("Switching w/ table @ %p\n", table);
+    pg_switch(table);
 
     // We're done, just hang...
     _hcf();

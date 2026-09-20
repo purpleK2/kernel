@@ -10,7 +10,9 @@ sources += [
   'arch/x86_64/interrupts/idt.c',
   'arch/x86_64/interrupts/isr.c',
   'arch/x86_64/interrupts/isr.asm',
-  'arch/x86_64/interrupts/idt.asm'
+  'arch/x86_64/interrupts/idt.asm',
+  'arch/x86_64/paging/paging.asm',
+  'arch/x86_64/paging/paging.c'
 ]
 
 if (not cc.has_argument('-march=x86-64'))

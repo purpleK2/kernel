@@ -23,6 +23,9 @@ SECTIONS
     /* that is the beginning of the region. */
     . = 0xffffffff80000000;
 
+    __k_start = .;
+    __k_limreq_start = .;
+
     /* Define a section to contain the Limine requests and assign it to its own PHDR */
     .limine_requests : {
         KEEP(*(.limine_requests_start))
@@ -32,6 +35,8 @@ SECTIONS
 
     /* Move to the next memory page for .text */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
+    __k_limreq_end = .;
+    __k_text_start = .;
 
     .text : {
         *(.text .text.*)
@@ -39,6 +44,8 @@ SECTIONS
 
     /* Move to the next memory page for .rodata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
+    __k_text_end = .;
+    __k_rodata_start = .;
 
     .rodata : {
         *(.rodata .rodata.*)
@@ -52,10 +59,13 @@ SECTIONS
 
     /* Move to the next memory page for .data */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
+    __k_rodata_end = .;
+    __k_data_start = .;
 
     .data : {
         *(.data .data.*)
     } :data
+
 
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
     /* unnecessary zeros will be written to the binary. */
@@ -66,9 +76,13 @@ SECTIONS
         *(COMMON)
     } :data
 
+    __k_data_end = .;
+
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)
     }
+
+    __k_end = .;
 }
