@@ -130,13 +130,14 @@ static struct page page_2mib = {.ps = PG_2MIB, .addr_mask = PG_2MIB_ADDR_MASK, .
 static struct page page_1gib = {.ps = PG_1GIB, .addr_mask = PG_1GIB_ADDR_MASK, .map = pg_map1gib};
 
 struct page* largest_pagesz(size_t s, uintptr_t v) {
+    struct page* best = &page_4kib;
     for (struct page* p = page_sizes; p != NULL; p = p->next) {
-        if (s >= p->ps && (v & (p->ps - 1)) == 0) {
-            return p;
+        if ((s >= p->ps && IS_ALIGNED(v, p->ps)) && (!best || p->ps > best->ps)) {
+            best = p;
         }
     }
 
-    return &page_4kib;
+    return best;
 }
 
 void pg_map(uintptr_t root_table, uintptr_t phys, uintptr_t virt, size_t len, size_t flags) {
