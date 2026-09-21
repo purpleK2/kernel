@@ -4,8 +4,9 @@
 #define LIMINEREQ   __attribute__((used, section(".limine_requests")))
 #define PACKED      __attribute__((packed))
 #define ALIGNED(x)  __attribute__((aligned(x)))
+#define UNUSED(x)   ((void)x)
 
-#define UNUSED(x) ((void)x)
+#define IS_ALIGNED(x, a)    (((x) & (a - 1)) == 0)
 
 #define ROUND_DOWN(n, a)    ((n) & ~((a) - 1))
 #define ROUND_UP(n, a)      (((n) + ((a) - 1)) & ~((a) - 1))
