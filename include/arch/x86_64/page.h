@@ -51,7 +51,6 @@
 #define PG_1GIB_ADDR_MASK   0xfffff0000000
 
 #define PG_FLAGS_MASK       0xfff
-#define PG_PML4_FLAGS_MASK  0xf7f   // reserved bits must be 0
 
 enum page_size {
     PG_4KIB = 0x1000,

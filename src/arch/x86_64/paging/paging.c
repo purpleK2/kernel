@@ -9,9 +9,10 @@
 
 #include <macro.h>
 #include <assert.h>
-
 #include <kprintf.h>
+
 #include <mm/pmm.h>
+#include <mm/vmo.h>
 
 LIMINEREQ static volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
@@ -58,14 +59,14 @@ uintptr_t pg_get_create_pmle(struct page* p, uintptr_t table, size_t idx, size_t
     uint64_t* t = (uint64_t*)hhdm_virtual(table);
 
     if (!(t[idx] & PG_PRESENT)) {
-        t[idx] = (uint64_t)palloc(p->ps / PAGESZ) | PG_PRESENT | (flags & ~(p->addr_mask));
+        t[idx] = (uint64_t)palloc(1) | PG_PRESENT | flags;
     } else {
         /*
          * Widen intermediate entry permissions: on x86-64, if a higher-level
          * entry (PDP/PDIR) lacks WRITE, all pages beneath it are read-only
          * regardless of their page-level flags.
          */
-        t[idx] |= PG_PRESENT | (flags & ~(p->addr_mask));
+        t[idx] |= PG_PRESENT | flags;
     }
 
     return t[idx] & p->addr_mask;
@@ -85,10 +86,10 @@ void pg_map4kib(struct page* p, uintptr_t root_table, uintptr_t phys, uintptr_t 
     size_t pde = PG_PDE(virt);
     size_t pte = PG_PTE(virt);
 
-    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & PG_PML4_FLAGS_MASK);
-    uintptr_t pd = pg_get_create_pmle(p, pdpt, pdpte, flags & PG_FLAGS_MASK);
-    uintptr_t pt = pg_get_create_pmle(p, pd, pde, flags & PG_FLAGS_MASK);
-    ((uint64_t*)hhdm_virtual(pt))[pte] = phys | (flags & ~(p->addr_mask)) | PG_PRESENT;
+    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & 0xf7f);
+    uintptr_t pd = pg_get_create_pmle(p, pdpt, pdpte, flags & 0xf7f);
+    uintptr_t pt = pg_get_create_pmle(p, pd, pde, flags & 0xf7f);
+    ((uint64_t*)hhdm_virtual(pt))[pte] = phys | flags | PG_PRESENT;
 }
 
 /*
@@ -104,9 +105,9 @@ void pg_map2mib(struct page* p, uintptr_t root_table, uintptr_t phys, uintptr_t 
     size_t pdpte = PG_PDPTE(virt);
     size_t pde = PG_PDE(virt);
 
-    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & PG_PML4_FLAGS_MASK);
-    uintptr_t pd = pg_get_create_pmle(p, pdpt, pdpte, flags & PG_FLAGS_MASK);
-    ((uint64_t*)hhdm_virtual(pd))[pde] = phys | PG_PRESENT | PG_PAT_PS | (flags & ~(p->addr_mask)) | (flags & PG_PAT_PS ? PG_PAT_LARGE : 0);
+    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & 0xf7f);
+    uintptr_t pd = pg_get_create_pmle(p, pdpt, pdpte, flags & 0xf7f);
+    ((uint64_t*)hhdm_virtual(pd))[pde] = phys | flags | PG_PRESENT | PG_PAT_PS;
 }
 
 /*
@@ -121,8 +122,8 @@ void pg_map1gib(struct page* p, uintptr_t root_table, uintptr_t phys, uintptr_t 
     size_t pml4e = PG_PML4E(virt);
     size_t pdpte = PG_PDPTE(virt);
 
-    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & PG_PML4_FLAGS_MASK);
-    ((uint64_t*)hhdm_virtual(pdpt))[pdpte] = phys | PG_PRESENT | PG_PAT_PS | (flags & ~(p->addr_mask)) | (flags & PG_PAT_PS ? PG_PAT_LARGE : 0);
+    uintptr_t pdpt = pg_get_create_pmle(p, root_table, pml4e, flags & 0xf7f);
+    ((uint64_t*)hhdm_virtual(pdpt))[pdpte] = phys | flags | PG_PRESENT | PG_PAT_PS;
 }
 
 static struct page page_4kib = {.ps = PG_4KIB, .addr_mask = PG_4KIB_ADDR_MASK, .map = pg_map4kib};
@@ -143,14 +144,14 @@ struct page* largest_pagesz(size_t s, uintptr_t v) {
 void pg_map(uintptr_t root_table, uintptr_t phys, uintptr_t virt, size_t len, size_t flags) {
     uintptr_t end = virt + len;
     while (virt < end) {
-
         struct page* p = largest_pagesz(len, virt);
         p->map(p, root_table, phys, virt, flags);
 
-        kprintf_trace("Mapped %#llx->%#llx ps=%zu flags=%#zx\n", virt, phys, p->ps, flags);
+        // kprintf_trace("Mapped %#llx->%#llx ps=%zu flags=%#zx\n", virt, phys, p->ps, flags);
 
         phys += p->ps;
         virt += p->ps;
+        len -= p->ps;   // only ps gets mapped, we must make sure the whole region is mapped
     }
 }
 
@@ -184,20 +185,18 @@ void ptable_setup(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t hh
     kprintf_trace("[KERNELBASE_PHYS] %#llx\n", executable_address->physical_base);
     kprintf_trace("[KERNELBASE_VIRT] %#llx\n", executable_address->virtual_base);
 
-    struct cpuid_ctx ctx;
-    if (_cpuid(0x80000001, &ctx) != 0) {
-        kprintf_error("Couldn't check for extended processor features!\n");
-    }
+    // struct cpuid_ctx ctx;
+    // if (_cpuid(0x80000001, &ctx) != 0) {
+    //     kprintf_error("Couldn't check for extended processor features!\n");
+    // }
 
-    if (ctx.edx & (1 << 26)) {
-        register_pagesz(&page_1gib);
-        kprintf_trace("CPU supports 1GiB pages\n");
-    }
+    // if (ctx.edx & (1 << 26)) {
+    //     register_pagesz(&page_1gib);
+    //     kprintf_trace("CPU supports 1GiB pages\n");
+    // }
 
-    register_pagesz(&page_2mib);
+    // register_pagesz(&page_2mib);
     register_pagesz(&page_4kib);
-
-
 
     // map the kernel
     uintptr_t limreq_start_offs = &__k_limreq_start - &__k_start;
@@ -237,7 +236,6 @@ void ptable_setup(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t hh
         data_len, PG_KERNEL_READ_WRITE | PG_XD);
 
     kprintf_info("Kernel mapped OK\n");
-
 
     // HHDmapping
     for (uint64_t i = 0; i < memmap->entry_count; i++) {
