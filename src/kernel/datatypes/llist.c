@@ -37,7 +37,7 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
             return NULL;
         }
 
-        return alloc(s);    // if possible, allocate a new node from the function
+        best_fit = alloc(s);    // if possible, allocate a new node from the function
     }
 
     struct ll_node* new_next;   // new best_prev->next node
