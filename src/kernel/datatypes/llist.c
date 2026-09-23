@@ -15,7 +15,7 @@ void ll_append(struct ll_node** root, struct ll_node* node) {
 }
 
 void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t)) {
-    if (!root || !(*root) || !s) return NULL;
+    if (!root || !s) return NULL;
 
     struct ll_node* best_fit = NULL;
     struct ll_node* best_prev = NULL;
