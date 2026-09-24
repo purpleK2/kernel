@@ -1,5 +1,6 @@
 #include <datatypes/llist.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 void ll_append(struct ll_node** root, struct ll_node* node) {
@@ -14,7 +15,7 @@ void ll_append(struct ll_node** root, struct ll_node* node) {
     n->next = node;
 }
 
-void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t)) {
+void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t, size_t*)) {
     if (!root || !s) return NULL;
 
     struct ll_node* best_fit = NULL;
@@ -37,7 +38,9 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
             return NULL;
         }
 
-        best_fit = alloc(s);    // if possible, allocate a new node from the function
+        size_t actual_allocated;
+        best_fit = alloc(s, &actual_allocated);    // if possible, allocate a new node from the function
+        best_fit->len = actual_allocated;
     }
 
     struct ll_node* new_next;   // new best_prev->next node
