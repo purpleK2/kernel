@@ -12,7 +12,6 @@
 #include <kprintf.h>
 
 #include <mm/pmm.h>
-#include <mm/vmo.h>
 
 LIMINEREQ static volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
