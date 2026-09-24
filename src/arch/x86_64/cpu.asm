@@ -18,7 +18,7 @@ _enable_interrupts:
 ; int _cpuid(uint32_t leaf, struct cpuid_ctx* ctx)
 global _cpuid
 _cpuid:
-    cmp rdi, 0
+    cmp rsi, 0
     je .nullptr
 
     push rbx
