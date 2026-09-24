@@ -147,7 +147,7 @@ void pg_map(uintptr_t root_table, uintptr_t phys, uintptr_t virt, size_t len, si
         struct page* p = largest_pagesz(len, virt);
         p->map(p, root_table, phys, virt, flags);
 
-        // kprintf_trace("Mapped %#llx->%#llx ps=%zu flags=%#zx\n", virt, phys, p->ps, flags);
+        kprintf_trace("Mapped %#llx->%#llx ps=%zu flags=%#zx\n", virt, phys, p->ps, flags);
 
         phys += p->ps;
         virt += p->ps;
