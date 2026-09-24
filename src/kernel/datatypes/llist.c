@@ -52,7 +52,7 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t))
     }
 
     if (best_prev) best_prev->next = new_next;               // link previous node to this one
-    if (*root != new_next && best_fit == *root) *root = new_next; // if the root node changed, write it back
+    if ((*root != new_next && best_fit == *root) || !best_prev) *root = new_next; // if the root node changed, write it back
 
     return best_fit;
 }
