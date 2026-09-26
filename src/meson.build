@@ -20,6 +20,7 @@ sources = [
   'kernel/kprintf.c',
   'kernel/assert.c',
   'kernel/datatypes/llist.c',
+  'kernel/datatypes/bitmap.c',
   'kernel/mm/pmm.c'
 ]
 
