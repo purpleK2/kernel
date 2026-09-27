@@ -29,9 +29,31 @@ void ptable_setup(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t hh
 void pg_map(uintptr_t root_table, uintptr_t phys, uintptr_t virt, size_t len, size_t flags);
 
 /*
+ * Unmap a physical region.
+ * @param root_table the root page table (e.g. CR3 register)
+ * @param virt virtual address
+ */
+void pg_unmap(uintptr_t root_table, uintptr_t virt);
+
+/*
+ * Return the physical address of a mapped virtual address.
+ * @param root_table the root page table (e.g. CR3 register)
+ * @param virt virtual address
+ * @returns the physical address the virtual address is mapped to.
+ */
+uintptr_t pg_phys(uintptr_t root_table, uintptr_t virt);
+
+/*
  * Switches the current page table.
  * @param new the new page table
  */
 void pg_switch(uintptr_t new);
+
+/*
+ * Convert VMO flags to page flags for mapping.
+ * @param vflags the VMO flags
+ * @returns arch-specific page flags.
+ */
+size_t pgflags_from_vflags(size_t vflags);
 
 #endif

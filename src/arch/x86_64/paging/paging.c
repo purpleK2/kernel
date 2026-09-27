@@ -12,6 +12,7 @@
 #include <kprintf.h>
 
 #include <mm/pmm.h>
+#include <mm/vmo.h>
 
 LIMINEREQ static volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
@@ -71,6 +72,12 @@ uintptr_t pg_get_create_pmle(struct page* p, uintptr_t table, size_t idx, size_t
     return t[idx] & p->addr_mask;
 }
 
+uintptr_t pg_get_pmle(uintptr_t table, size_t idx) {
+    if (!table) return 0;
+    uint64_t* t = (uint64_t*)hhdm_virtual(table);
+    return t[idx] & 0xfffffffff000;
+}
+
 /*
  * Map a 4KiB page.
  * @param p pointer to a "page size" structure
@@ -126,8 +133,8 @@ void pg_map1gib(struct page* p, uintptr_t root_table, uintptr_t phys, uintptr_t 
 }
 
 static struct page page_4kib = {.ps = PG_4KIB, .addr_mask = PG_4KIB_ADDR_MASK, .map = pg_map4kib};
-static struct page page_2mib = {.ps = PG_2MIB, .addr_mask = PG_2MIB_ADDR_MASK, .map = pg_map2mib};
-static struct page page_1gib = {.ps = PG_1GIB, .addr_mask = PG_1GIB_ADDR_MASK, .map = pg_map1gib};
+static struct page page_2mib = {.ps = PG_2MIB, .addr_mask = PG_HUGE_ADDR_MASK, .map = pg_map2mib};
+static struct page page_1gib = {.ps = PG_1GIB, .addr_mask = PG_HUGE_ADDR_MASK, .map = pg_map1gib};
 
 struct page* largest_pagesz(size_t s, uintptr_t v) {
     struct page* best = &page_4kib;
@@ -142,16 +149,59 @@ struct page* largest_pagesz(size_t s, uintptr_t v) {
 
 void pg_map(uintptr_t root_table, uintptr_t phys, uintptr_t virt, size_t len, size_t flags) {
     uintptr_t end = virt + len;
+    uintptr_t v_start = virt;
+    uintptr_t p_start = phys;
+    uintptr_t aligned_len = 0;
     while (virt < end) {
         struct page* p = largest_pagesz(len, virt);
         p->map(p, root_table, phys, virt, flags);
 
-        kprintf_trace("Mapped %#llx->%#llx ps=%zu flags=%#zx\n", virt, phys, p->ps, flags);
-
         phys += p->ps;
         virt += p->ps;
         len -= p->ps;   // only ps gets mapped, we must make sure the whole region is mapped
+        aligned_len += p->ps;
     }
+    kprintf_trace("Mapped %#llx->%#llx len=%zu flags=%#zx\n", v_start, p_start, aligned_len, flags);
+}
+
+uintptr_t pg_phys(uintptr_t root_table, uintptr_t virt) {
+    size_t pml4e = PG_PML4E(virt);
+    size_t pdpte = PG_PDPTE(virt);
+    size_t pde = PG_PDE(virt);
+    size_t pte = PG_PTE(virt);
+
+    uintptr_t pdpt = pg_get_pmle(root_table, pml4e);
+    if (((uint64_t*)hhdm_virtual(pdpt))[pdpte] & PG_PAT_PS) {
+        return ((uint64_t*)hhdm_virtual(pdpt))[pdpte] & PG_HUGE_ADDR_MASK;
+    }
+    uintptr_t pd = pg_get_pmle(pdpt, pdpte);
+    if (((uint64_t*)hhdm_virtual(pd))[pde] & PG_PAT_PS) {
+        return ((uint64_t*)hhdm_virtual(pd))[pde] & PG_HUGE_ADDR_MASK;
+    }
+
+    uintptr_t pt = pg_get_pmle(pd, pde);
+    return ((uint64_t*)hhdm_virtual(pt))[pte] & PG_4KIB_ADDR_MASK;
+}
+
+void pg_unmap(uintptr_t root_table, uintptr_t virt) {
+    size_t pml4e = PG_PML4E(virt);
+    size_t pdpte = PG_PDPTE(virt);
+    size_t pde = PG_PDE(virt);
+    size_t pte = PG_PTE(virt);
+
+    uintptr_t pdpt = pg_get_pmle(root_table, pml4e);
+    if (((uint64_t*)hhdm_virtual(pdpt))[pdpte] & PG_PAT_PS) {
+        ((uint64_t*)hhdm_virtual(pdpt))[pdpte] = 0;
+        return;
+    }
+    uintptr_t pd = pg_get_pmle(pdpt, pdpte);
+    if (((uint64_t*)hhdm_virtual(pd))[pde] & PG_PAT_PS) {
+        ((uint64_t*)hhdm_virtual(pd))[pde] = 0;
+        return;
+    }
+
+    uintptr_t pt = pg_get_pmle(pd, pde);
+    ((uint64_t*)hhdm_virtual(pt))[pte] = 0;
 }
 
 void ptable_setup(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t hhdm_offset, uintptr_t* ptable_out) {
@@ -255,4 +305,13 @@ void ptable_setup(LIMINE_PTR(struct limine_memmap_response*) memmap, uint64_t hh
     }
 
     if (ptable_out) *ptable_out = root_table;
+}
+
+size_t pgflags_from_vflags(size_t vflags) {
+    size_t f = 0;
+    if (vflags & VMO_PRESENT) f |= PG_PRESENT;
+    if (vflags & VMO_WRITE) f |= PG_WRITE;
+    if (vflags & VMO_USR) f |= PG_USER;
+    if (vflags & VMO_NX) f |= PG_XD;
+    return f;
 }

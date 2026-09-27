@@ -13,6 +13,7 @@
 
 #include <mm/pmm.h>
 #include <paging.h>
+#include <mm/vmm.h>
 
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -96,6 +97,11 @@ void kmain(void) {
             fb_ptr[y * (framebuffer->pitch / 4) + x] = (nY << 8) | nX;
         }
     }
+
+    struct vmc* vmc = vmc_new();
+    vmc->root_table = table;
+    struct vmo* v = valloc(vmc, 1, VMO_KERNEL_RW, (uintptr_t)NULL);
+    vfree(vmc, v);
 
     // We're done, just hang...
     _hcf();

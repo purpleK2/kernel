@@ -47,8 +47,7 @@
 #define PG_PTE(a)   (((a) >> 12) & PMLE_MASK)   // PAE & 4 & 5, bits 20:12
 
 #define PG_4KIB_ADDR_MASK   0xfffffffff000
-#define PG_2MIB_ADDR_MASK   0xfffffff00000
-#define PG_1GIB_ADDR_MASK   0xfffff0000000
+#define PG_HUGE_ADDR_MASK   0xffffffffe000
 
 #define PG_FLAGS_MASK       0xfff
 
