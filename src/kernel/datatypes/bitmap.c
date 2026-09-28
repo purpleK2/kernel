@@ -8,7 +8,9 @@ int bitmap_find(struct bitmap* bitmap, size_t blocks, size_t *block_out) {
     size_t cur_blocks = 0;  // counting free blocks
     size_t block = bitmap->last_block;
     for (; block < bitmap->blocks; block++) {
-        if (BITMAP_GET(bitmap->bitmap, block) == 1) {
+        size_t idx = BITMAP_IDX(block);
+        size_t shift = BITMAP_SHITFT(block);
+        if ((bitmap->bitmap[idx] & (1 << shift)) == 1) {
             cur_blocks = 0;
             continue;
         }

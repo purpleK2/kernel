@@ -8,7 +8,6 @@ typedef uint8_t bitmap_i;   // bitmap item
 #define BITMAP_SHITFT(bl)   ((bl) % BITS_PER_BLOCK)
 #define BITMAP_IDX(bl)      ((bl) / (BITS_PER_BLOCK))
 #define BITMAP_BIT(bl, x)   ((x) << BITMAP_SHITFT(bl))
-#define BITMAP_GET(b, i)    ((b)[BITMAP_IDX(i)] & BITMAP_BIT(i, 1))
 
 struct bitmap {
     bitmap_i* bitmap;
