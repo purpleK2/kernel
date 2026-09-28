@@ -22,8 +22,27 @@ struct ll_node* vmm_alloc_llnode(size_t s, size_t* out) {
     return (struct ll_node*)hhdm_virtual((uintptr_t)p);
 }
 
-void vmm_free_llnode(struct ll_node* n) {
-    if (n->len & (PAGESZ - 1)) pfree(n, n->len / PAGESZ);
+/*
+ * Reclaim a vmm linked list node to the PMM.
+ * @param p pointer to a reclaimable VMO or VMC struct object
+ */
+void vmm_free_node(void* p) {
+    struct ll_node* n = vmo_list;
+    struct ll_node* prev = NULL;
+    for (; n != NULL; n = n->next) {
+        if ((uintptr_t)n <= (uintptr_t)p && ((uintptr_t)n + (n->len)) > (uintptr_t)p) break;
+        prev = n;
+    }
+
+    if (!n) return; // something must've gone really wrong but whatever
+    if (n->len % PAGESZ != 0) return;
+
+    pfree(n, n->len / PAGESZ);
+    if (prev) {
+        prev->next = n->next;
+    } else {
+        vmo_list = n->next;
+    }
 }
 
 /*
@@ -79,8 +98,10 @@ struct vmc* vmc_new() {
 
 void vmc_free(struct vmc* v) {
     llfree(&vmo_list, v, sizeof(struct vmc));
+    vmm_free_node(v);
 }
 
 void vmo_free(struct vmo* v) {
     llfree(&vmo_list, v, sizeof(struct vmo));
+    vmm_free_node(v);
 }
