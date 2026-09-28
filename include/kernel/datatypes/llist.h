@@ -37,6 +37,6 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t, 
  * @param free function pointer to reclaim a node
  * @note If the reclaimed pointer sits at a region before the head node, *root will become the reclaimed pointer.
  */
-void llfree(struct ll_node** root, void* ptr, size_t s, void (*free)(struct ll_node*));
+void llfree(struct ll_node** root, void* ptr, size_t s);
 
 #endif

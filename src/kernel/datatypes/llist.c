@@ -60,7 +60,7 @@ void* llalloc(struct ll_node** root, size_t s, struct ll_node* (*alloc)(size_t, 
     return best_fit;
 }
 
-void llfree(struct ll_node** root, void* ptr, size_t s, void (*free)(struct ll_node*)) {
+void llfree(struct ll_node** root, void* ptr, size_t s) {
     if (!root || !(*root) || !ptr || !s) return;
 
     struct ll_node* new = ptr;
@@ -83,16 +83,6 @@ void llfree(struct ll_node** root, void* ptr, size_t s, void (*free)(struct ll_n
     if ((uintptr_t)new + new->len == (uintptr_t)n) {
         new->len += n->len;
         n = n->next;
-    }
-
-    if (free) {
-        free(new);  // reclaim the pointer and don't add it to the list
-        if (n_prev) {
-            n_prev->next = n;
-        } else {
-            *root = n;
-        }
-        return;
     }
 
     new->next = n;

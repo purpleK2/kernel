@@ -66,7 +66,7 @@ void pfree(void* p, size_t pages) {
     void* p_virt = (void*)((uintptr_t)p + pmm.limine_hhdm_offset);
     size_t s = pages * PAGESZ;
 
-    llfree(&pmm.head, p_virt, s, NULL);
+    llfree(&pmm.head, p_virt, s);
     pmm.used_mem -= s;
     kprintf_trace("Reclaimed %zu page%s\n", pages, pages > 1 ? "s": "");
 }

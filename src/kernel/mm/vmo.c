@@ -67,9 +67,9 @@ struct vmc* vmc_new() {
 }
 
 void vmc_free(struct vmc* v) {
-    llfree(&vmo_list, v, sizeof(struct vmc), vmm_free_llnode);
+    llfree(&vmo_list, v, sizeof(struct vmc));
 }
 
 void vmo_free(struct vmo* v) {
-    llfree(&vmo_list, v, sizeof(struct vmo), vmm_free_llnode);
+    llfree(&vmo_list, v, sizeof(struct vmo));
 }
