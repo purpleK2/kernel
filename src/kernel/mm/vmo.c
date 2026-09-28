@@ -10,6 +10,12 @@
 
 static struct ll_node* vmo_list;
 
+/*
+ * Allocates a new node for the linked list. This function gets called by llalloc from vmo_new and vmc_new.
+ * @param s requested size (can be unaligned)
+ * @param out actually allocated size
+ * @returns linked list node
+ */
 struct ll_node* vmm_alloc_llnode(size_t s, size_t* out) {
     *out = ROUND_UP(s, PAGESZ);
     void * p = palloc(ROUND_UP(s, PAGESZ) / PAGESZ);
@@ -20,6 +26,11 @@ void vmm_free_llnode(struct ll_node* n) {
     if (n->len & (PAGESZ - 1)) pfree(n, n->len / PAGESZ);
 }
 
+/*
+ * Add VMO struct object to a VMC.
+ * @param vmc VMC struct object
+ * @param vmo VMO struct object to append
+ */
 void vmc_append(struct vmc* vmc, struct vmo* vmo) {
     if (!vmc) return;
     if (!vmc->root_vmo) {

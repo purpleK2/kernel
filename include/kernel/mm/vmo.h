@@ -55,7 +55,7 @@ struct vmc* vmc_new();
 
 /*
  * Get a new virtual base address.
- * @param vmc VMC
+ * @param vmc VMC struct object
  * @param pages PAGESZ blocks
  * @param out non-NULL pointer to save the requested address
  * @returns 0 on success, non-zero on failure.
@@ -63,7 +63,7 @@ struct vmc* vmc_new();
 int vmc_new_base(struct vmc* vmc, size_t pages, uintptr_t* out);
 /*
  * Reclaim a "virtual pages" to the bitmap.
- * @param vmc VMC
+ * @param vmc VMC struct object
  * @param base address to reclaim
  * @param pages PAGESZ blocks
  */
@@ -71,7 +71,7 @@ void vmc_reclaim_base(struct vmc* vmc, uintptr_t base, size_t pages);
 
 /*
  * Append a VMO to a VMC's VMOs list.
- * @param vmc VMC
+ * @param vmc VMC struct object
  * @param vmo VMO to append
  */
 void vmc_append(struct vmc* vmc, struct vmo* vmo);
