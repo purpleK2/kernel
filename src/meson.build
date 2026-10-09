@@ -23,7 +23,9 @@ sources = [
   'kernel/datatypes/bitmap.c',
   'kernel/mm/pmm.c',
   'kernel/mm/vmo.c',
-  'kernel/mm/vmm.c'
+  'kernel/mm/vmm.c',
+  'kernel/mm/heap.c',
+  'kernel/mm/kheap.c'
 ]
 
 linker_script = join_paths(meson.current_source_dir(), 'arch'/target_arch/'linker.ld')

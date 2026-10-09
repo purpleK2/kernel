@@ -14,6 +14,7 @@
 #include <mm/pmm.h>
 #include <paging.h>
 #include <mm/vmm.h>
+#include <mm/kheap.h>
 
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -47,6 +48,8 @@ static const char *memmap_entry_types[9] = {"USABLE",
                                             "KERNEL_AND_MODULES",
                                             "FRAMEBUFFER",
                                             "RESERVED_MAPPED"};
+
+static struct vmc* kvmc;
 
 void kmain(void) {
     _disable_interrupts();
@@ -82,10 +85,12 @@ void kmain(void) {
     struct limine_hhdm_response* hhdm = hhdm_request.response;
 
     pmm_init(memmap, hhdm->offset);
+    kprintf_ok("PMM init\n");
     uintptr_t table;
     ptable_setup(memmap, hhdm->offset, &table);
     kprintf_trace("Switching w/ table @ %p\n", table);
     pg_switch(table);
+    kprintf_ok("paging\n");
 
     // Print a nice pattern to screen as an example.
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
@@ -98,10 +103,17 @@ void kmain(void) {
         }
     }
 
-    struct vmc* vmc = vmc_new();
-    vmc->root_table = table;
-    struct vmo* v = valloc(vmc, 1, VMO_KERNEL_RW, (uintptr_t)NULL);
-    vfree(vmc, v);
+    kvmc = vmc_new();
+    kvmc->root_table = table;
+    kheap_init(kvmc);
+    kprintf_ok("Kernel heap init\n");
+
+    uint16_t* p = kmalloc(0x10);
+    *p = 32;
+    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
+    p = krealloc(p, 0x10);
+    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
+    kfree(p);
 
     // We're done, just hang...
     _hcf();
