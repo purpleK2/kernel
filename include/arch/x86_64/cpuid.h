@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+#define CPUID_LEAF_VENDOR   0x40000000
+
+#define CPUID_VENDOR_QEMU   0x54474354  // "TCGT"
+
 struct cpuid_ctx {
     uint32_t eax;
     uint32_t ebx;

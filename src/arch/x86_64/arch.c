@@ -9,16 +9,15 @@
 
 void arch_entry() {
     struct cpuid_ctx ctx;
-    _cpuid(0x40000000, &ctx);
+    _cpuid(CPUID_LEAF_VENDOR, &ctx);
     switch (ctx.ebx) {
-        case 0x54474354:    // "TGCT", QEMU vendor little-endian
+        case CPUID_VENDOR_QEMU:
             e9_init();
             kprintf_ok("E9 port\n");
             break;
         default:
             break;
     }
-
 
     gdt_init();
     kprintf_ok("GDT setup\n");
