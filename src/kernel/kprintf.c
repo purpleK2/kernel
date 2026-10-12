@@ -36,9 +36,14 @@ int kprintf(enum log_lvl lvl, const char *fmt, ...) {
     for (struct sink* s = sink_list; s != NULL; s = s->next) {
         if (!(s->level_mask & lvl)) continue;
 
+        if (s->prefix) s->prefix(lvl);
+
         va_start(va, fmt);
         l = npf_vpprintf(s->putc, NULL, fmt, va);
         va_end(va);
+
+        if (s->suffix) s->suffix(lvl);
+
     }
 
     return l;

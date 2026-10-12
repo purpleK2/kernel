@@ -12,6 +12,17 @@ struct sink {
      */
     void (*putc)(int, void*);
 
+    /*
+     * Pointer to "prefix" function. Sets up the sink for printing the given level.
+     * @param 1 log level
+     */
+    void (*prefix)(int);
+    /*
+     * Pointer to "prefix" function. Sink post-printing procedure.
+     * @param 1 log level
+     */
+    void (*suffix)(int);
+
     struct sink* next;  /* Pointer to next sink */
 };
 
