@@ -33,6 +33,11 @@ LIMINEREQ static volatile struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
+LIMINEREQ static volatile struct limine_executable_file_request kernel_file_request = {
+    .id = LIMINE_EXECUTABLE_FILE_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
@@ -108,12 +113,10 @@ void kmain(void) {
     kheap_init(kvmc);
     kprintf_ok("Kernel heap init\n");
 
-    uint16_t* p = kmalloc(0x10);
-    *p = 32;
-    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
-    p = krealloc(p, 0x10);
-    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
-    kfree(p);
+    assert(kernel_file_request.response != NULL);
+    struct limine_executable_file_response* kernel_file_response = kernel_file_request.response;
+    struct limine_file* kernel_file = kernel_file_response->executable_file;
+    kprintf_trace("Kernel executable loaded @ %p size=%llu\n", kernel_file->address, kernel_file->size);
 
     // We're done, just hang...
     _hcf();
