@@ -41,8 +41,7 @@ void kfree(void* p);
 
 /*
  * Kernel heap init.
- * @param kvmc kernel VMC
  */
-void kheap_init(struct vmc* kvmc);
+void kheap_init();
 
 #endif
