@@ -1,7 +1,7 @@
-#include "mm/heap.h"
-#include <mm/kheap.h>
-#include <mm/vmm.h>
+#include <mm/kvmm.h>
 #include <mm/pmm.h>
+#include <mm/heap.h>
+#include <mm/kheap.h>
 
 #include <stddef.h>
 
@@ -11,8 +11,6 @@
 #include <cpu.h>
 
 static struct heap_cache g_kcaches[KHEAP_CACHES];
-// static struct heap g_heap;
-static struct vmc* g_kvmc;
 
 static struct heap_cache* get_cache(size_t s) {
     for (size_t o = KHEAP_CACHE_MIN_ORDER; o < KHEAP_CACHE_MAX_ORDER; o++) {
@@ -41,7 +39,7 @@ static struct heap_cache* get_cache_by_size(size_t addr, size_t base) {
 
 
 void refill_cache(struct heap_cache* cache) {
-    void *p = valloc(g_kvmc, 1, VMO_KERNEL_RW | VMO_NX, 0);
+    void *p = kvalloc(1, VMO_KERNEL_RW | VMO_NX, 0);
     if (!p) {
         kprintf_panic("OUT OF MEMORY!\n");
         _hcf();
@@ -64,7 +62,7 @@ void* kmalloc(size_t s) {
     if (!cache) {
         // Large object: fall back to page allocator
         size_t pages = ROUND_UP(s, PAGESZ) / PAGESZ;
-        void *ptr = valloc(g_kvmc, pages, VMO_KERNEL_RW | VMO_NX, 0);
+        void *ptr = kvalloc(pages, VMO_KERNEL_RW | VMO_NX, 0);
         if (!ptr)
             return NULL;
         return ptr;
@@ -86,7 +84,7 @@ void kfree(void* p) {
     struct heap_cache *cache = get_cache_by_size(addr, page_base);
     if (!cache) {
         // Large allocation: free whole pages
-        vfree(g_kvmc, (void *)page_base);
+        kvfree((void *)page_base);
         return;
     }
 
@@ -115,7 +113,7 @@ void *krealloc(void *p, size_t new) {
     struct heap_cache *cache = get_cache_by_size(addr, page_base);
     size_t old_size = PAGESZ;
     if (!cache) {
-        vfree(g_kvmc, (void *)page_base);
+        kvfree((void *)page_base);
     } else {
         old_size = cache->obj_size;
         kfree(p);
@@ -130,9 +128,7 @@ void *krealloc(void *p, size_t new) {
     return p;
 }
 
-void kheap_init(struct vmc* kvmc) {
-    g_kvmc = kvmc;
-
+void kheap_init() {
     for (size_t i = 0; i < KHEAP_CACHES; i++) {
         struct heap_cache* cache = &g_kcaches[i];
         cache->obj_size = (1 << (i + KHEAP_CACHE_MIN_ORDER));
