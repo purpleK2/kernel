@@ -14,6 +14,7 @@
 #include <mm/pmm.h>
 #include <paging.h>
 #include <mm/vmm.h>
+#include <mm/kvmm.h>
 #include <mm/kheap.h>
 
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -48,8 +49,6 @@ static const char *memmap_entry_types[9] = {"USABLE",
                                             "KERNEL_AND_MODULES",
                                             "FRAMEBUFFER",
                                             "RESERVED_MAPPED"};
-
-static struct vmc* kvmc;
 
 void kmain(void) {
     _disable_interrupts();
@@ -103,8 +102,7 @@ void kmain(void) {
         }
     }
 
-    kvmc = vmc_new();
-    kvmc->root_table = table;
+    struct vmc* kvmc = kvmm_init(table);
     kheap_init(kvmc);
     kprintf_ok("Kernel heap init\n");
 
