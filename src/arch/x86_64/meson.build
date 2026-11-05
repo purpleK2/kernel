@@ -12,7 +12,8 @@ sources += [
   'arch/x86_64/interrupts/isr.asm',
   'arch/x86_64/interrupts/idt.asm',
   'arch/x86_64/paging/paging.asm',
-  'arch/x86_64/paging/paging.c'
+  'arch/x86_64/paging/paging.c',
+  'arch/x86_64/elf_psabi.c'
 ]
 
 if (not cc.has_argument('-march=x86-64'))

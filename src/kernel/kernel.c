@@ -17,6 +17,10 @@
 #include <mm/kvmm.h>
 #include <mm/kheap.h>
 
+#include <elf/elf.h>
+#include <elf/loader.h>
+#include <string.h>
+
 LIMINEREQ static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
 LIMINEREQ static volatile struct limine_framebuffer_request framebuffer_request = {
@@ -31,6 +35,16 @@ LIMINEREQ static volatile struct limine_memmap_request memmap_request = {
 
 LIMINEREQ static volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0
+};
+
+LIMINEREQ static volatile struct limine_executable_file_request kernel_file_request = {
+    .id = LIMINE_EXECUTABLE_FILE_REQUEST_ID,
+    .revision = 0
+};
+
+LIMINEREQ static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 0
 };
 
@@ -49,6 +63,12 @@ static const char *memmap_entry_types[9] = {"USABLE",
                                             "KERNEL_AND_MODULES",
                                             "FRAMEBUFFER",
                                             "RESERVED_MAPPED"};
+
+static struct limine_file* kernel_file;
+
+uintptr_t elf_resolve_ksym(const char* sym) {
+    return elf_resolve_sym(kernel_file->address, sym);
+}
 
 void kmain(void) {
     _disable_interrupts();
@@ -106,12 +126,35 @@ void kmain(void) {
     kheap_init(kvmc);
     kprintf_ok("Kernel heap init\n");
 
-    uint16_t* p = kmalloc(0x10);
-    *p = 32;
-    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
-    p = krealloc(p, 0x10);
-    kprintf_trace("p = %p; *p = %#hu\n", p, *p);
-    kfree(p);
+    assert(kernel_file_request.response != NULL);
+    struct limine_executable_file_response* kernel_file_response = kernel_file_request.response;
+    kernel_file = kernel_file_response->executable_file;
+    kprintf_trace("Kernel executable loaded @ %p size=%llu\n", kernel_file->address, kernel_file->size);
+
+    assert(elf_read(kernel_file->address) == 0);
+
+    if (module_request.response) {
+        assert(module_request.response->modules);
+        struct limine_file** modules = module_request.response->modules;
+        for (uint64_t m = 0; m < module_request.response->module_count; m++) {
+            struct limine_file* mod = modules[m];
+            kprintf_trace("Loaded module %s cmdline=%s\n", mod->path, mod->string);
+
+            if (strcmp(mod->string, "elf_test") == 0) {
+                void* load;
+                elf_load(mod->address, &load);
+                uintptr_t entry = elf_resolve_sym(mod->address, "main");
+                if (!entry) {
+                    kprintf_warn("main not found!\n");
+                } else {
+                    kprintf_trace("Found entry @ offset %#llx\n", entry);
+                    void (*main)(void) = load + entry;
+                    kprintf_trace("Loading ELF @ %#p\n", main);
+                    main();
+                }
+            }
+        }
+    }
 
     // We're done, just hang...
     _hcf();
