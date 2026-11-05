@@ -27,7 +27,10 @@ sources = [
   'kernel/mm/heap.c',
   'kernel/mm/kheap.c',
   'kernel/string.c',
-  'kernel/mm/kvmm.c'
+  'kernel/mm/kvmm.c',
+  'kernel/elf/elf.c',
+  'kernel/elf/loader.c',
+  'kernel/elf/syms.c'
 ]
 
 linker_script = join_paths(meson.current_source_dir(), 'arch'/target_arch/'linker.ld')
